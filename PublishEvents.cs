@@ -1,46 +1,74 @@
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
+namespace MatchZy;
 
-namespace MatchZy
+public partial class MatchZy
 {
-    public partial class MatchZy
+    private static readonly HttpClient EventHttpClient = CreateEventHttpClient();
+
+    private static HttpClient CreateEventHttpClient()
     {
-        public async Task SendEventAsync(MatchZyEvent @event)
+        return new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(15)
+        };
+    }
+
+    public async Task SendEventAsync(MatchZyEvent @event)
+    {
+        if (string.IsNullOrWhiteSpace(matchConfig.RemoteLogURL)) return;
+
+        string payload = JsonSerializer.Serialize(@event, @event.GetType());
+        const int maxAttempts = 3;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
             {
-                if (string.IsNullOrEmpty(matchConfig.RemoteLogURL)) return;
-
-                Log($"[SendEventAsync] Sending Event: {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} on {matchConfig.RemoteLogURL}");
-
-                using var httpClient = new HttpClient();
-                using var jsonContent = new StringContent(JsonSerializer.Serialize(@event, @event.GetType()), Encoding.UTF8, "application/json");
-
-                string jsonString = await jsonContent.ReadAsStringAsync();
-
-                Log($"[SendEventAsync] SENDING DATA: {jsonString}");
-
-                if (!string.IsNullOrEmpty(matchConfig.RemoteLogHeaderKey) && !string.IsNullOrEmpty(matchConfig.RemoteLogHeaderValue))
+                using var request = new HttpRequestMessage(HttpMethod.Post, matchConfig.RemoteLogURL)
                 {
-                    httpClient.DefaultRequestHeaders.Add(matchConfig.RemoteLogHeaderKey, matchConfig.RemoteLogHeaderValue);
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                };
+
+                if (!string.IsNullOrWhiteSpace(matchConfig.RemoteLogHeaderKey) &&
+                    !string.IsNullOrWhiteSpace(matchConfig.RemoteLogHeaderValue))
+                {
+                    request.Headers.TryAddWithoutValidation(
+                        matchConfig.RemoteLogHeaderKey,
+                        matchConfig.RemoteLogHeaderValue);
                 }
 
-                var httpResponseMessage = await httpClient.PostAsync(matchConfig.RemoteLogURL, jsonContent);
+                using HttpResponseMessage response = await EventHttpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    Log($"[SendEventAsync] { @event.EventName } event { @event.EventId } delivered on attempt {attempt}.");
+                    return;
+                }
 
-                if (httpResponseMessage.IsSuccessStatusCode)
-                {
-                    Log($"[SendEventAsync] Sending {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} successful with status code: {httpResponseMessage.StatusCode}");
-                }
-                else
-                {
-                    Log($"[SendEventAsync] Sending {@event.EventName} for matchId: {liveMatchId} mapNumber: {matchConfig.CurrentMapNumber} failed with status code: {httpResponseMessage.StatusCode}, ResponseContent: {await httpResponseMessage.Content.ReadAsStringAsync()}");
-                }
+                bool retryable = response.StatusCode == HttpStatusCode.RequestTimeout ||
+                    (int)response.StatusCode >= 500;
+
+                Log($"[SendEventAsync] { @event.EventName } event { @event.EventId } failed with {(int)response.StatusCode} on attempt {attempt}/{maxAttempts}.");
+                if (!retryable || attempt == maxAttempts) return;
             }
-            catch (Exception e)
+            catch (OperationCanceledException) when (attempt < maxAttempts)
             {
-                Log($"[SendEventAsync FATAL] An error occurred: {e.Message}");
+                Log($"[SendEventAsync] { @event.EventName } event { @event.EventId } timed out on attempt {attempt}/{maxAttempts}.");
             }
+            catch (HttpRequestException exception) when (attempt < maxAttempts)
+            {
+                Log($"[SendEventAsync] { @event.EventName } event { @event.EventId } network error on attempt {attempt}/{maxAttempts}: {exception.Message}");
+            }
+            catch (Exception exception)
+            {
+                Log($"[SendEventAsync] { @event.EventName } event { @event.EventId } failed: {exception.Message}");
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(attempt));
         }
     }
 }

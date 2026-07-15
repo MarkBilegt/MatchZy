@@ -82,3 +82,12 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.prac` Starts Practice Mode (Alias: `.tactics`)
 - `.exitprac` Exits from practice mode and loads Match mode.
 - `.rcon <command>` Sends command to the server
+
+# BETHECHAMP Test Match Commands
+
+These commands are restricted to the BETHECHAMP `OWNER` role and server console. Test matches use isolated statistics and never affect production readiness or ranking.
+
+- `.testmatch` Starts a 5v5 MR3 test match, filling empty player slots with bots. (Alias: `.testmatch short`, `.testmatch mr3`)
+- `.testmatch full` Starts a 5v5 MR12 test match. (Alias: `.testmatch mr12`)
+- `.testmatch status` Shows the active test format and MatchZy match ID.
+- `.testmatch stop` Aborts the test, removes test bots, and restores normal ten-player warmup. (Alias: `.testmatch end`)

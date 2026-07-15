@@ -66,9 +66,9 @@ public partial class MatchZy
         return 0;
     }
 
-    public int GetTeamMinReady(int team)
-    {
-        if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.MinPlayersToReady;
+        public int GetTeamMinReady(int team)
+        {
+            if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.MinPlayersToReady;
         if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
         return 0;
     }

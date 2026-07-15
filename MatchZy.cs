@@ -12,16 +12,16 @@ namespace MatchZy
     public partial class MatchZy : BasePlugin
     {
 
-        public override string ModuleName => "MatchZy";
+        public override string ModuleName => "BETHECHAMP Match Control";
 
         public override string ModuleVersion => "0.8.15";
 
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
-        public override string ModuleDescription => "A plugin for running and managing CS2 practice/pugs/scrims/matches!";
+        public override string ModuleDescription => "BETHECHAMP match, scrim, and practice control for CS2.";
 
-        public string chatPrefix = $"[{ChatColors.Green}MatchZy{ChatColors.Default}]";
-        public string adminChatPrefix = $"[{ChatColors.Red}ADMIN{ChatColors.Default}]";
+        public string chatPrefix = $"[{ChatColors.Green}BETHECHAMP{ChatColors.Default}]";
+        public string adminChatPrefix = $"[{ChatColors.Green}BETHECHAMP ADMIN{ChatColors.Default}]";
 
         // Plugin start phase data
         public bool isPractice = false;
@@ -70,7 +70,7 @@ namespace MatchZy
 
         // Game Config
         public bool isKnifeRequired = true;
-        public int minimumReadyRequired = 2; // Number of ready players required start the match. If set to 0, all connected players have to ready-up to start the match.
+        public int minimumReadyRequired = 10; // BETHECHAMP public matches start once ten players are ready.
         public bool isWhitelistRequired = false;
         public bool isSaveNadesAsGlobalEnabled = false;
 
@@ -89,6 +89,7 @@ namespace MatchZy
             LoadAdmins();
 
             database.InitializeDatabase(ModuleDirectory);
+            InitializeRaitoIntegration();
 
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
@@ -475,7 +476,7 @@ namespace MatchZy
                     if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
                     {
                         Server.ExecuteCommand(messageCommandArg);
-                        ReplyToUserCommand(player, "Command sent successfully!");
+                        ReplyToUserCommand(player, "Server command dispatched.");
                     }
                     else
                     {
@@ -486,7 +487,7 @@ namespace MatchZy
                 {
                     HandleCoachCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".ban"))
+                if (message.StartsWith(".mapban"))
                 {
                     HandeMapBanCommand(player, messageCommandArg);
                 }
@@ -542,7 +543,7 @@ namespace MatchZy
             RegisterEventHandler<EventMolotovDetonate>(EventMolotovDetonateHandler);
             RegisterEventHandler<EventDecoyStarted>(EventDecoyDetonateHandler);
 
-            Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
+            Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] Core author: WD- (https://github.com/shobhit-pathak/)");
         }
     }
 }

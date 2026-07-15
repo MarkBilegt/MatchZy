@@ -61,6 +61,7 @@ namespace MatchZy
             }
         }
 
+        [ConsoleCommand("css_r", "Marks the player ready")]
         [ConsoleCommand("css_ready", "Marks the player ready")]
         public void OnPlayerReady(CCSPlayerController? player, CommandInfo? command)
         {
@@ -593,7 +594,7 @@ namespace MatchZy
             Server.PrintToChatAll($"{adminChatPrefix} {message}");
         }
 
-        [ConsoleCommand("reload_admins", "Reload admins of MatchZy")]
+        [ConsoleCommand("reload_admins", "Reload BETHECHAMP match admins")]
         public void OnReloadAdmins(CCSPlayerController? player, CommandInfo? command)
         {
             if (IsPlayerAdmin(player, "reload_admins", "@css/config"))

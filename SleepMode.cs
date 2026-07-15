@@ -36,7 +36,7 @@ namespace MatchZy
                 ExecUnpracCommands();
                 Server.ExecuteCommand("""exec gamemode_competitive.cfg;""");
             }
-            Log($"[StartSleepMode] MatchZy deactivated!");
+            Log("[StartSleepMode] BETHECHAMP match control deactivated.");
         }
 
         [ConsoleCommand("css_sleep", "Starts sleep mode")]

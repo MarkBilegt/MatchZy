@@ -24,12 +24,12 @@ public partial class MatchZy
         if (!IsPlayerValid(player)) return;
         if (isPractice)
         {
-            ReplyToUserCommand(player, "Coach command can only be used in match mode!");
+            ReplyToUserCommand(player, "Coaching is available only in match mode.");
             return;
         }
         if (IsWingmanMode())
         {
-            ReplyToUserCommand(player, "Coach command cannot be used in wingman!");
+            ReplyToUserCommand(player, "Coaching is unavailable in Wingman.");
             return;
         }
 
@@ -37,13 +37,13 @@ public partial class MatchZy
 
         if (side != "t" && side != "ct")
         {
-            ReplyToUserCommand(player, "Usage: .coach t or .coach ct");
+            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.coach <t|ct>{ChatColors.Default}");
             return;
         }
 
         if (matchzyTeam1.coach.Contains(player!) || matchzyTeam2.coach.Contains(player!))
         {
-            ReplyToUserCommand(player, "You are already coaching a team!");
+            ReplyToUserCommand(player, "You already hold a coaching slot.");
             return;
         }
 
@@ -70,8 +70,8 @@ public partial class MatchZy
         matchZyCoachTeam.coach.Add(player!);
         player!.Clan = $"[{matchZyCoachTeam.teamName} COACH]";
         if (player.InGameMoneyServices != null) player.InGameMoneyServices.Account = 0;
-        ReplyToUserCommand(player, $"You are now coaching {matchZyCoachTeam.teamName}! Use .uncoach to stop coaching");
-        PrintToAllChat($"{ChatColors.Green}{player.PlayerName}{ChatColors.Default} is now coaching {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}!");
+        ReplyToUserCommand(player, $"Coaching {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}. Use {ChatColors.Green}.uncoach{ChatColors.Default} to leave the slot.");
+        PrintToAllChat($"Coach assigned: {ChatColors.Green}{player.PlayerName}{ChatColors.Default} joins {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}.");
     }
 
     public void HandleCoaches()

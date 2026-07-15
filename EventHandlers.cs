@@ -15,8 +15,14 @@ public partial class MatchZy
             if (!IsPlayerValid(player)) return HookResult.Continue;
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
+            if (player.IsBot || player.IsHLTV)
+            {
+                Log($"[FULL CONNECT] Ignoring non-human controller {player.PlayerName} for readiness and moderation.");
+                return HookResult.Continue;
+            }
+
             // Handling whitelisted players
-            if (!player.IsBot || !player.IsHLTV)
+            if (!player.IsBot && !player.IsHLTV)
             {
                 var steamId = player.SteamID;
 
@@ -29,7 +35,7 @@ public partial class MatchZy
                     if (team == CsTeam.None)
                     {
                         Log($"[EventPlayerConnectFull] KICKING PLAYER STEAMID: {steamId}, Name: {player.PlayerName} (NOT ALLOWED!)");
-                        PrintToAllChat($"Kicking player {player.PlayerName} - Not a player in this game.");
+                        PrintToAllChat($"Roster removal: {ChatColors.Green}{player.PlayerName}{ChatColors.Default} is not listed for this match.");
                         KickPlayer(player);
                         return HookResult.Continue;
                     }

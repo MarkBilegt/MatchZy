@@ -20,9 +20,9 @@ namespace MatchZy
 
         public FakeConVar<bool> everyoneIsAdmin = new("matchzy_everyone_is_admin", "If set to true, all the players will have admin privilege. Default: false", false);
 
-        public FakeConVar<bool> showCreditsOnMatchStart = new("matchzy_show_credits_on_match_start", "Whether to show 'MatchZy Plugin by WD-' message on match start. Default: true", true);
+        public FakeConVar<bool> showCreditsOnMatchStart = new("matchzy_show_credits_on_match_start", "Whether to show the BETHECHAMP match-control startup message. Default: true", true);
 
-        public FakeConVar<string> hostnameFormat = new("matchzy_hostname_format", "The server hostname to use. Set to \"\" to disable/use existing. Default: MatchZy | {TEAM1} vs {TEAM2}", "MatchZy | {TEAM1} vs {TEAM2}");
+        public FakeConVar<string> hostnameFormat = new("matchzy_hostname_format", "The server hostname to use. Set to \"\" to disable/use existing. Default: BETHECHAMP | {TEAM1} vs {TEAM2}", "BETHECHAMP | {TEAM1} vs {TEAM2}");
 
         public FakeConVar<bool> enableDamageReport = new("matchzy_enable_damage_report", "Whether to show damage report after each round or not. Default: true", true);
 
@@ -84,7 +84,7 @@ namespace MatchZy
             resetCvarsOnSeriesEnd = bool.TryParse(args, out bool resetCvarsOnSeriesEndValue) ? resetCvarsOnSeriesEndValue : args != "0" && resetCvarsOnSeriesEnd;
         }
 
-        [ConsoleCommand("matchzy_minimum_ready_required", "Minimum ready players required to start the match. Default: 1")]
+        [ConsoleCommand("matchzy_minimum_ready_required", "Minimum ready players required to start the match. Default: 10")]
         public void MatchZyMinimumReadyRequired(CCSPlayerController? player, CommandInfo command)
         {
             if (player != null) return;
@@ -176,7 +176,7 @@ namespace MatchZy
             pauseAfterRoundRestore = bool.TryParse(args, out bool pauseAfterRoundRestoreValue) ? pauseAfterRoundRestoreValue : args != "0" && pauseAfterRoundRestore;
         }
 
-        [ConsoleCommand("matchzy_chat_prefix", "Default value of chat prefix for MatchZy messages. Default value: [{Green}MatchZy{Default}]")]
+        [ConsoleCommand("matchzy_chat_prefix", "Chat prefix for BETHECHAMP messages. Default value: [{Green}BETHECHAMP{Default}]")]
         public void MatchZyChatPrefix(CCSPlayerController? player, CommandInfo command)
         {
             if (player != null) return;
@@ -185,7 +185,7 @@ namespace MatchZy
 
             if (string.IsNullOrEmpty(args))
             {
-                chatPrefix = $"[{ChatColors.Green}MatchZy{ChatColors.Default}]";
+                chatPrefix = $"[{ChatColors.Green}BETHECHAMP{ChatColors.Default}]";
                 return;
             }
 
@@ -196,7 +196,7 @@ namespace MatchZy
             Log($"[MatchZyChatPrefix] chatPrefix: {chatPrefix}");
         }
 
-        [ConsoleCommand("matchzy_admin_chat_prefix", "Chat prefix to show whenever an admin sends message using .asay <message>. Default value: [{Green}MatchZy{Default}]")]
+        [ConsoleCommand("matchzy_admin_chat_prefix", "Chat prefix for BETHECHAMP admin broadcasts. Default value: [{Green}BETHECHAMP ADMIN{Default}]")]
         public void MatchZyAdminChatPrefix(CCSPlayerController? player, CommandInfo command)
         {
             if (player != null) return;
@@ -205,7 +205,7 @@ namespace MatchZy
 
             if (string.IsNullOrEmpty(args))
             {
-                chatPrefix = $"[{ChatColors.Red}ADMIN{ChatColors.Default}]";
+                adminChatPrefix = $"[{ChatColors.Green}BETHECHAMP ADMIN{ChatColors.Default}]";
                 return;
             }
 
@@ -216,7 +216,7 @@ namespace MatchZy
             Log($"[MatchZyAdminChatPrefix] adminChatPrefix: {adminChatPrefix}");
         }
 
-        [ConsoleCommand("matchzy_chat_messages_timer_delay", "Number of seconds of delay before sending reminder messages from MatchZy (like unready message, paused message, etc). Default: 12")]
+        [ConsoleCommand("matchzy_chat_messages_timer_delay", "Delay between BETHECHAMP ready-check and pause reminders. Default: 12")]
         public void MatchZyChatMessagesTimerDelay(CCSPlayerController? player, CommandInfo command)
         {
             if (player != null) return;
@@ -237,7 +237,7 @@ namespace MatchZy
                     }
                 }
             } else if (command.ArgCount == 1) {
-                ReplyToUserCommand(player, $"matchzy_chat_messages_timer_delay = {chatTimerDelay}");
+                ReplyToUserCommand(player, $"BETHECHAMP reminder interval: {ChatColors.Green}{chatTimerDelay}s{ChatColors.Default}.");
             }
         }
 

@@ -174,15 +174,15 @@ namespace MatchZy
                 Server.ExecuteCommand("""mp_t_default_grenades "weapon_molotov weapon_hegrenade weapon_smokegrenade weapon_flashbang weapon_decoy"; mp_t_default_primary "weapon_ak47"; mp_warmup_online_enabled "true"; mp_warmup_pausetimer "1"; mp_warmup_start; bot_quota_mode fill; mp_solid_teammates 2; mp_autoteambalance false; mp_teammates_are_enemies false; buddha 1; buddha_ignore_bots 1; buddha_reset_hp 100;""");
             }
             GetSpawns();
-            PrintToAllChat($"Practice mode loaded!");
-            Server.PrintToChatAll($" {ChatColors.Green}Spawns: {ChatColors.Default}.spawn, .ctspawn, .tspawn, .bestspawn, .worstspawn");
-            Server.PrintToChatAll($" {ChatColors.Green}Bots: {ChatColors.Default}.bot, .nobots, .crouchbot, .boost, .crouchboost");
-            Server.PrintToChatAll($" {ChatColors.Green}Nades: {ChatColors.Default}.loadnade, .savenade, .importnade, .listnades");
-            Server.PrintToChatAll($" {ChatColors.Green}Nade Throw: {ChatColors.Default}.rethrow, .throwindex <index>, .lastindex, .delay <number>");
-            Server.PrintToChatAll($" {ChatColors.Green}Utility & Toggles: {ChatColors.Default}.clear, .fastforward, .last, .back, .solid, .impacts, .traj");
+            PrintToAllChat("Practice lab online.");
+            PrintToAllChat($"{ChatColors.Green}SPAWNS{ChatColors.Default} | .spawn, .ctspawn, .tspawn, .bestspawn, .worstspawn");
+            PrintToAllChat($"{ChatColors.Green}BOTS{ChatColors.Default} | .bot, .nobots, .crouchbot, .boost, .crouchboost");
+            PrintToAllChat($"{ChatColors.Green}LINEUPS{ChatColors.Default} | .loadnade, .savenade, .importnade, .listnades");
+            PrintToAllChat($"{ChatColors.Green}REPLAYS{ChatColors.Default} | .rethrow, .throwindex <index>, .lastindex, .delay <number>");
+            PrintToAllChat($"{ChatColors.Green}TOOLS{ChatColors.Default} | .clear, .fastforward, .last, .back, .solid, .impacts, .traj");
             // On new line to prevent text cutting off
-            Server.PrintToChatAll($" {ChatColors.Green}Utility & Toggles: {ChatColors.Default}.savepos, .loadpos");
-            Server.PrintToChatAll($" {ChatColors.Green}Sides & Others: {ChatColors.Default}.ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
+            PrintToAllChat($"{ChatColors.Green}POSITION{ChatColors.Default} | .savepos, .loadpos");
+            PrintToAllChat($"{ChatColors.Green}SESSION{ChatColors.Default} | .ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
         }
 
         public void GetSpawns()
@@ -511,7 +511,7 @@ namespace MatchZy
                         File.WriteAllText(savednadesPath, updatedJson);
 
                         // ReplyToUserCommand(player, $"Lineup '{lineupName}' imported and saved successfully.");
-                        ReplyToUserCommand(player, Localizer["matchzy.pm.lineupimportedsuccess"]);
+                        ReplyToUserCommand(player, Localizer["matchzy.pm.lineupimportedsuccess", lineupName]);
                     }
                     else
                     {
@@ -550,7 +550,7 @@ namespace MatchZy
                 var savedNadesDict = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, Dictionary<string, string>>>>(existingJson)
                                     ?? new Dictionary<string, Dictionary<string, Dictionary<string, string>>>();
 
-                ReplyToUserCommand(player, $"\x0D-----All Saved Lineups for \x06{Server.MapName}\x0D-----");
+                ReplyToUserCommand(player, $"\x0DBETHECHAMP LINEUP VAULT | \x06{Server.MapName}\x0D");
 
                 // List lineups for the specified player
                 ListLineups(player, "default", Server.MapName, savedNadesDict, nadeFilter);
@@ -561,7 +561,7 @@ namespace MatchZy
             catch (JsonException ex)
             {
                 Log($"Error handling JSON: {ex.Message}");
-                ReplyToUserCommand(player, $"Error handling JSON. Please check the server logs.");
+                ReplyToUserCommand(player, "Lineup vault could not be read. Check the BETHECHAMP server log.");
             }
         }
 
@@ -759,14 +759,14 @@ namespace MatchZy
 			{
 				player.PlayerPawn.Value.Health = 100;
 				// ReplyToUserCommand(player, $"God mode disabled!");
-                		ReplyToUserCommand(player, "God is " + Localizer["matchzy.cc.disabled"]);
+				ReplyToUserCommand(player, "Damage immunity: " + Localizer["matchzy.cc.disabled"]);
 				return;
 			}
 			else
 			{
 				player.PlayerPawn.Value.Health = 2147483647; // max 32bit int
 				// ReplyToUserCommand(player, $"God mode enabled!");
-                		ReplyToUserCommand(player, "God is " + Localizer["matchzy.cc.enabled"]);
+				ReplyToUserCommand(player, "Damage immunity: " + Localizer["matchzy.cc.enabled"]);
 				return;
 			}
         }
@@ -1154,7 +1154,7 @@ namespace MatchZy
                 playerData[key].PlayerPawn.Value!.MoveType = MoveType_t.MOVETYPE_NONE;
             }
 
-            Server.PrintToChatAll($"{chatPrefix} Fastforwarding 20 seconds!");
+            Server.PrintToChatAll($"{chatPrefix} Practice clock advanced by {ChatColors.Green}20 seconds{ChatColors.Default}.");
             Server.ExecuteCommand("host_timescale 10");
             AddTimer(20.0f, () => {
                 ResetFastForward(preFastForwardMoveTypes);
@@ -1208,10 +1208,10 @@ namespace MatchZy
             if (noFlashList.Contains(userId))
             {
                 noFlashList.Remove(userId);
-                ReplyToUserCommand(player, "Disabled noflash.");
+                ReplyToUserCommand(player, "Flash immunity: " + Localizer["matchzy.cc.disabled"]);
             } else {
                 noFlashList.Add(userId);
-                ReplyToUserCommand(player, "Enabled noflash. Use .noflash again to disable.");
+                ReplyToUserCommand(player, "Flash immunity: " + Localizer["matchzy.cc.enabled"] + ". Toggle with .noflash.");
                 Server.NextFrame(() => KillFlashEffect(player));
             }
 
@@ -1609,8 +1609,8 @@ namespace MatchZy
             {
                 playerTimers[userId].KillTimer();
                 double timerResult = playerTimers[userId].GetTimerResult();
-                player.PrintToCenter($"Timer: {timerResult}s");
-                PrintToPlayerChat(player, $"Timer stopped! Result: {timerResult}s");
+                player.PrintToCenter($"BETHECHAMP TIMER: {timerResult}s");
+                PrintToPlayerChat(player, $"Timer locked at {ChatColors.Green}{timerResult}s{ChatColors.Default}.");
                 playerTimers.Remove(userId);
             }
             else
@@ -1620,7 +1620,7 @@ namespace MatchZy
                     StartTime = DateTime.Now,
                     Timer = AddTimer(0.1f, () => DisplayPracticeTimerCenter(userId), TimerFlags.REPEAT)
                 };
-                PrintToPlayerChat(player, $"Timer started! User !timer to stop it.");
+                PrintToPlayerChat(player, $"Timer running. Use {ChatColors.Green}!timer{ChatColors.Default} to lock the result.");
             }
         }
 
@@ -1681,7 +1681,7 @@ namespace MatchZy
 
             ConVar.Find("mp_solid_teammates")!.SetValue(newSolidValue);
 
-            PrintToAllChat($"mp_solid_teammates is now set to {newSolidValue}");
+            PrintToAllChat($"Teammate collision: {ChatColors.Green}{newSolidValue}{ChatColors.Default}.");
         }
 
         [ConsoleCommand("css_impacts", "Toggles sv_showimpacts in practice mode")]
@@ -1695,7 +1695,7 @@ namespace MatchZy
 
             Server.ExecuteCommand($"sv_showimpacts {newImpactValue}");
 
-            PrintToAllChat($"sv_showimpacts is now set to {newImpactValue}");
+            PrintToAllChat($"Bullet impacts: {ChatColors.Green}{newImpactValue}{ChatColors.Default}.");
         }
 
         [ConsoleCommand("css_traj", "Toggles sv_grenade_trajectory_prac_pipreview in practice mode")]
@@ -1708,7 +1708,7 @@ namespace MatchZy
 
             Server.ExecuteCommand($"sv_grenade_trajectory_prac_pipreview {!trajValue}");
 
-            PrintToAllChat($"sv_grenade_trajectory_prac_pipreview is now set to {!trajValue}");
+            PrintToAllChat($"Grenade trajectory preview: {ChatColors.Green}{!trajValue}{ChatColors.Default}.");
         }
 
         [ConsoleCommand("css_bestspawn", "Teleports you to your team's closest spawn from your current position")]

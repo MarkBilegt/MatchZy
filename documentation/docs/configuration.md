@@ -54,7 +54,7 @@ Again, inside `csgo/cfg/MatchZy`, a file named `config.cfg` should be present. T
 :   Whether knife round is enabled by default or not. This is the default value, but knife can be toggled by [admins](#creating-admins) using .roundknife command.<br>**`Default: true`**
 
 ####`matchzy_minimum_ready_required`
-:   Minimum ready players required to start the match. If set to 0, all connected players have to ready-up to start the match.<br>**`Default: 2`**
+:   Minimum ready players required to start the match. If set to 0, all connected players have to ready-up to start the match.<br>**`Default: 10`**
 
 ####`matchzy_stop_command_available`
 :   Whether !stop/.stop command to restore the backup of the current round is enabled by default or not.<br>**`Default: false`**

@@ -1,0 +1,9 @@
+{
+  "ServerId": "local-cs2-server",
+  "ServerName": "BETHECHAMP 5v5",
+  "ServerIpAddress": "127.0.0.1",
+  "ServerPort": 27015,
+  "Region": "Local",
+  "MaxPlayers": 11,
+  "HeartbeatIntervalSeconds": 10
+}

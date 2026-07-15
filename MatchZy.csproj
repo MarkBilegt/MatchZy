@@ -22,5 +22,6 @@
   <ItemGroup>
     <None Update="lang\**\*.*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="spawns\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="gamedata\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

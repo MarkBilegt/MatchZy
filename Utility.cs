@@ -132,6 +132,7 @@ namespace MatchZy
             if (attr.CanExecuteCommand(player)) return true; // Admin exists in admins.json of CSSharp
             if (player == null) return true; // Sent via server, hence should be treated as an admin.
             if (loadedAdmins.ContainsKey(player.SteamID.ToString())) return true; // Admin exists in admins.json of MatchZy
+            if (RaitoCanExecute(player, command, permissions)) return true;
             return false;
         }
 
@@ -155,7 +156,7 @@ namespace MatchZy
             if (unreadyPlayers.Count > 0)
             {
                 string unreadyPlayerList = string.Join(", ", unreadyPlayers);
-                string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
+                string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Target: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default} ready]";
 
                 // Server.PrintToChatAll($"{chatPrefix} Unready players: {unreadyPlayerList}. Please type .ready to ready up! {minimumReadyRequiredMessage}");
                 if (isRoundRestorePending)
@@ -265,9 +266,9 @@ namespace MatchZy
                 Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;mp_restartgame 1;mp_warmup_end;");
             }
 
-            PrintToAllChat($"{ChatColors.Olive}KNIFE!");
-            PrintToAllChat($"{ChatColors.Lime}KNIFE!");
-            PrintToAllChat($"{ChatColors.Green}KNIFE!");
+            PrintToAllChat($"{ChatColors.Olive}KNIFE ROUND");
+            PrintToAllChat($"{ChatColors.Lime}KNIFE ROUND");
+            PrintToAllChat($"{ChatColors.Green}KNIFE ROUND");
         }
 
         private void SendSideSelectionMessage()
@@ -324,9 +325,9 @@ namespace MatchZy
             // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
 
-            PrintToAllChat($"{ChatColors.Olive}LIVE!");
-            PrintToAllChat($"{ChatColors.Lime}LIVE!");
-            PrintToAllChat($"{ChatColors.Green}LIVE!");
+            PrintToAllChat($"{ChatColors.Olive}MATCH LIVE");
+            PrintToAllChat($"{ChatColors.Lime}MATCH LIVE");
+            PrintToAllChat($"{ChatColors.Green}MATCH LIVE");
 
             var goingLiveEvent = new GoingLiveEvent
             {
@@ -373,6 +374,9 @@ namespace MatchZy
         {
             try
             {
+                AbortRaitoRankedMatchTracking();
+                ResetRaitoTestMatchState();
+
                 // We stop demo recording if a live match was restarted
                 if (matchStarted && isDemoRecording)
                 {
@@ -644,7 +648,7 @@ namespace MatchZy
             }
             else
             {
-                ReplyToUserCommand(player, $"Invalid map name!");
+                ReplyToUserCommand(player, "Map rejected. Enter a valid workshop or competitive map name.");
             }
         }
 
@@ -767,7 +771,8 @@ namespace MatchZy
             HandleClanTags();
 
             string seriesType = "BO" + matchConfig.NumMaps.ToString();
-            liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig);
+            liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig, isRaitoTestMatch);
+            BeginRaitoRankedMatchTracking();
             SetupRoundBackupFile();
 
             GetSpawns();
@@ -787,7 +792,7 @@ namespace MatchZy
             }
             if (showCreditsOnMatchStart.Value)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Match control online{ChatColors.Default}. GLHF.");
             }
             if (matchStartMessage.Value.Trim() != "" && matchStartMessage.Value.Trim() != "\"\"")
             {
@@ -817,7 +822,7 @@ namespace MatchZy
                     {
                         playerData[key].Clan = "[Unready]";
                     }
-                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
+                    Server.PrintToChatAll($"{chatPrefix} Clan sync | {playerData[key].PlayerName}: {playerData[key].Clan}");
                 }
             }
             else if (matchStarted)
@@ -832,7 +837,7 @@ namespace MatchZy
                     {
                         playerData[key].Clan = reverseTeamSides["CT"].teamTag;
                     }
-                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
+                    Server.PrintToChatAll($"{chatPrefix} Clan sync | {playerData[key].PlayerName}: {playerData[key].Clan}");
                 }
             }
         }
@@ -921,17 +926,17 @@ namespace MatchZy
             }
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} Series lead: {ChatColors.Green}{matchzyTeam1.teamName} {matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}.");
 
             }
             else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} Series lead: {ChatColors.Green}{matchzyTeam2.teamName} {matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}.");
 
             }
             else
             {
-                Server.PrintToChatAll($"{chatPrefix} The series is tied at {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} Series level at {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}.");
             }
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
@@ -1046,7 +1051,7 @@ namespace MatchZy
                     coachKillTimer?.Kill();
                     coachKillTimer = null;
                     (int t1score, int t2score) = GetTeamsScore();
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName} [{t1score} - {t2score}] {matchzyTeam2.teamName}");
+                    Server.PrintToChatAll($"{chatPrefix} Score: {ChatColors.Green}{matchzyTeam1.teamName} [{t1score} - {t2score}] {matchzyTeam2.teamName}{ChatColors.Default}");
 
                     ShowDamageInfo();
 
@@ -1085,11 +1090,11 @@ namespace MatchZy
                     // One of the team did not use .stop command hence display the proper message after the round has ended.
                     if (stopData["ct"] && !stopData["t"])
                     {
-                        Server.PrintToChatAll($"{chatPrefix} The round restore request by {ChatColors.Green}{reverseTeamSides["CT"].teamName}{ChatColors.Default} was cancelled as the round ended");
+                        Server.PrintToChatAll($"{chatPrefix} Rollback request from {ChatColors.Green}{reverseTeamSides["CT"].teamName}{ChatColors.Default} expired at round end.");
                     }
                     else if (!stopData["ct"] && stopData["t"])
                     {
-                        Server.PrintToChatAll($"{chatPrefix} The round restore request by {ChatColors.Green}{reverseTeamSides["TERRORIST"].teamName}{ChatColors.Default} was cancelled as the round ended");
+                        Server.PrintToChatAll($"{chatPrefix} Rollback request from {ChatColors.Green}{reverseTeamSides["TERRORIST"].teamName}{ChatColors.Default} expired at round end.");
                     }
 
                     // Invalidate .stop requests after a round is completed.
@@ -1247,7 +1252,7 @@ namespace MatchZy
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Admin{ChatColors.Default} has paused the match.");
             if (player == null)
             {
-                Server.PrintToConsole($"[MatchZy] {Localizer["matchzy.pause.adminpausedthematch"]}");
+                Server.PrintToConsole($"[BETHECHAMP] {Localizer["matchzy.pause.adminpausedthematch"]}");
             }
             SetMatchPausedFlags();
         }
@@ -1266,7 +1271,7 @@ namespace MatchZy
 
                 if (player == null)
                 {
-                    Server.PrintToConsole("[MatchZy] Admin has unpaused the match, resuming the match!");
+                    Server.PrintToConsole("[BETHECHAMP] Admin resumed the match.");
                 }
             }
         }
@@ -1301,7 +1306,7 @@ namespace MatchZy
             ExecUnpracCommands();
             ResetMatch();
             RemoveSpawnBeams();
-            Server.PrintToChatAll($"{chatPrefix} Match mode loaded!");
+            Server.PrintToChatAll($"{chatPrefix} Match mode armed. Waiting for the ready check.");
         }
 
         private void ExecLiveCFG()
@@ -1371,33 +1376,33 @@ namespace MatchZy
         {
             if (!IsPlayerValid(player)) return;
 
-            ReplyToUserCommand(player, "Available commands:");
+            ReplyToUserCommand(player, "BETHECHAMP command deck:");
 
             if (isPractice)
             {
-                player!.PrintToChat($" {ChatColors.Green}Spawns: {ChatColors.Default}.spawn, .ctspawn, .tspawn, .bestspawn, .worstspawn");
-                player.PrintToChat($" {ChatColors.Green}Bots: {ChatColors.Default}.bot, .nobots, .crouchbot, .boost, .crouchboost");
-                player.PrintToChat($" {ChatColors.Green}Nades: {ChatColors.Default}.loadnade, .savenade, .importnade, .listnades");
-                player.PrintToChat($" {ChatColors.Green}Nade Throw: {ChatColors.Default}.rethrow, .throwindex <index>, .lastindex, .delay <number>");
-                player.PrintToChat($" {ChatColors.Green}Utility & Toggles: {ChatColors.Default}.clear, .fastforward, .last, .back, .solid, .impacts, .traj");
-                player.PrintToChat($" {ChatColors.Green}Utility & Toggles: {ChatColors.Default}.savepos, .loadpos");
-                player.PrintToChat($" {ChatColors.Green}Sides & Others: {ChatColors.Default}.ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}SPAWNS{ChatColors.Default} | .spawn, .ctspawn, .tspawn, .bestspawn, .worstspawn");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}BOTS{ChatColors.Default} | .bot, .nobots, .crouchbot, .boost, .crouchboost");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}LINEUPS{ChatColors.Default} | .loadnade, .savenade, .importnade, .listnades");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}REPLAYS{ChatColors.Default} | .rethrow, .throwindex <index>, .lastindex, .delay <number>");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}TOOLS{ChatColors.Default} | .clear, .fastforward, .last, .back, .solid, .impacts, .traj");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}POSITION{ChatColors.Default} | .savepos, .loadpos");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}SESSION{ChatColors.Default} | .ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
                 return;
             }
             if (readyAvailable)
             {
-                player!.PrintToChat($" {ChatColors.Green}Ready/Unready: {ChatColors.Default}.ready, .unready");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}READY CHECK{ChatColors.Default} | .ready, .unready");
                 return;
             }
             if (isSideSelectionPhase)
             {
-                player!.PrintToChat($" {ChatColors.Green}Side Selection: {ChatColors.Default}.stay, .switch, .ct, .t");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}SIDE CALL{ChatColors.Default} | .stay, .switch, .ct, .t");
                 return;
             }
             if (matchStarted)
             {
                 string stopCommandMessage = isStopCommandAvailable ? ", .stop" : "";
-                player!.PrintToChat($" {ChatColors.Green}Pause/Restore: {ChatColors.Default}.pause, .unpause, .tac, .tech{stopCommandMessage}");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}MATCH CONTROL{ChatColors.Default} | .pause, .unpause, .tac, .tech{stopCommandMessage}");
                 return;
             }
         }
@@ -1609,13 +1614,13 @@ namespace MatchZy
             int roundsPlayed = gameRules.TotalRoundsPlayed;
             try
             {
-                foreach (int key in playerData.Keys)
+                foreach (CCSPlayerController player in GetRaitoStatsPlayers())
                 {
-                    CCSPlayerController player = playerData[key];
-                    if (!player.IsValid || player.ActionTrackingServices == null) continue;
+                    if (!player.IsValid || player.IsHLTV || (player.IsBot && !isRaitoTestMatch) || player.ActionTrackingServices == null) continue;
 
                     var playerStats = player.ActionTrackingServices.MatchStats;
-                    ulong steamid64 = player.SteamID;
+                    ulong steamid64 = GetRaitoStatsSteamId(player);
+                    if (steamid64 == 0) continue;
 
                     // Create a nested dictionary to store individual stats for the player
                     Dictionary<string, object> stats = new Dictionary<string, object>
@@ -1745,7 +1750,7 @@ namespace MatchZy
 
         private void Log(string message)
         {
-            Console.WriteLine("[MatchZy] " + message);
+            Console.WriteLine("[BETHECHAMP] " + message);
         }
 
         private void AutoStart()
@@ -1935,7 +1940,7 @@ namespace MatchZy
                 if (!whiteList.Contains(steamId.ToString()))
                 {
                     Log($"[EventPlayerConnectFull] KICKING PLAYER STEAMID: {steamId}, Name: {player.PlayerName} (Not whitelisted!)");
-                    PrintToAllChat($"Kicking player {player.PlayerName} - Not whitelisted.");
+                    PrintToAllChat($"Whitelist removal: {ChatColors.Green}{player.PlayerName}{ChatColors.Default} is not cleared for this server.");
                     KickPlayer(player);
                     return true;
                 }
