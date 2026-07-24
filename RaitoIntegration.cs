@@ -18,7 +18,9 @@ public partial class MatchZy
     private sealed record RaitoWeaponRefreshState(CBasePlayerWeapon Weapon, string DesignerName, int Clip1, int ReserveAmmo, bool RestoreAmmo);
 
     private readonly Dictionary<ulong, (string Role, DateTime ExpiresAt)> raitoRoleCache = new();
+    private DateTime raitoRoleCacheInvalidatedAt = DateTime.MinValue;
     private readonly Dictionary<ulong, Dictionary<string, RaitoSkinRecord>> raitoSkinCache = new();
+    private readonly Dictionary<string, string> raitoAdminCallStatuses = new();
     private readonly Dictionary<(ulong SteamId, int Team), nint> raitoGloveItemViews = new();
     private readonly object raitoSkinCacheLock = new();
     private long nextRaitoItemId = 65155030970;
@@ -87,6 +89,7 @@ public partial class MatchZy
         }
         AddCommandListener("say", OnRaitoPlayerSay);
         AddCommandListener("say_team", OnRaitoPlayerSay);
+        InitializeRaitoCommunityFeatures();
         InitializeRaitoRanking();
         PushRaitoHeartbeat();
         raitoHeartbeatTimer = AddTimer(raitoConfig.HeartbeatIntervalSeconds, PushRaitoHeartbeat, TimerFlags.REPEAT);
@@ -802,10 +805,13 @@ public partial class MatchZy
         try
         {
             var ban = raitoDatabase.GetActiveModeration("Ban", steamId64);
-            if (ban is null) return;
-
-            string reason = SanitizeServerCommandText(string.IsNullOrWhiteSpace(ban.Reason) ? "Banned by BETHECHAMP admin" : ban.Reason);
-            Server.NextFrame(() => Server.ExecuteCommand($"kickid {playerSlot + 1} \"Banned: {reason}\""));
+            if (ban is not null)
+            {
+                string reason = SanitizeServerCommandText(string.IsNullOrWhiteSpace(ban.Reason) ? "Banned by BETHECHAMP admin" : ban.Reason);
+                Server.NextFrame(() => Server.ExecuteCommand($"kickid {playerSlot + 1} \"Banned: {reason}\""));
+                return;
+            }
+            AddTimer(1.0f, () => EnforceRaitoReservedSlot(steamId64), TimerFlags.STOP_ON_MAPCHANGE);
         }
         catch (Exception ex)
         {
@@ -819,13 +825,34 @@ public partial class MatchZy
 
         try
         {
-            int currentPlayers = Utilities.GetPlayers().Count(player => player.IsValid && !player.IsBot && !player.IsHLTV);
+            int currentPlayers = Math.Min(raitoConfig.PublicSlots, Utilities.GetPlayers().Count(player => player.IsValid && !player.IsBot && !player.IsHLTV && player.TeamNum != (byte)CsTeam.Spectator));
+            raitoDatabase.ExpireAdminCallsForMapChange(raitoConfig.ServerId, Server.MapName);
+            NotifyRaitoAdminCallUpdates();
             string state = isRaitoTestMatch ? "test" : isPractice ? "practice" : isMatchLive ? "live" : isKnifeRound ? "knife" : isWarmup ? "warmup" : "waiting";
             raitoDatabase.UpdateServer(raitoConfig, currentPlayers, state, Server.MapName);
         }
         catch (Exception ex)
         {
             Log($"[BETHECHAMP] Heartbeat failed: {ex.Message}");
+        }
+    }
+
+    private void NotifyRaitoAdminCallUpdates()
+    {
+        if (raitoDatabase is null) return;
+        foreach (RaitoAdminCallUpdate update in raitoDatabase.GetRecentAdminCallUpdates(raitoConfig.ServerId))
+        {
+            if (!raitoAdminCallStatuses.TryGetValue(update.Id, out string? previous))
+            {
+                raitoAdminCallStatuses[update.Id] = update.Status;
+                continue;
+            }
+            if (previous == update.Status) continue;
+            raitoAdminCallStatuses[update.Id] = update.Status;
+            CCSPlayerController? caller = Utilities.GetPlayers().FirstOrDefault(player => player.IsValid && player.SteamID == update.CallerSteamId64);
+            if (!IsPlayerValid(caller)) continue;
+            if (update.Status == "CLAIMED") PrintToPlayerChat(caller!, "An administrator accepted your call.");
+            else if (update.Status is "RESOLVED" or "DISMISSED" or "EXPIRED") PrintToPlayerChat(caller!, $"Your admin call is now {update.Status.ToLowerInvariant()}.");
         }
     }
 
@@ -1008,6 +1035,7 @@ public partial class MatchZy
             return "OWNER";
         }
 
+        RefreshRaitoRoleCacheInvalidation();
         if (raitoRoleCache.TryGetValue(steamId64, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
         {
             return cached.Role;
@@ -1021,6 +1049,26 @@ public partial class MatchZy
         raitoRoleCache[steamId64] = (role, DateTime.UtcNow.AddSeconds(15));
         return role;
     }
+
+    internal string GetRaitoRoleFresh(ulong steamId64)
+    {
+        if (loadedAdmins.ContainsKey(steamId64.ToString())) return "OWNER";
+        if (raitoDatabase is null || !raitoDatabase.TryGetUserRole(steamId64, out string role, out _)) return "USER";
+        raitoRoleCache[steamId64] = (role, DateTime.UtcNow.AddSeconds(15));
+        return role;
+    }
+
+    private void RefreshRaitoRoleCacheInvalidation()
+    {
+        if (raitoDatabase is null) return;
+        DateTime invalidatedAt = raitoDatabase.GetRoleCacheInvalidationTimestamp();
+        if (invalidatedAt <= raitoRoleCacheInvalidatedAt) return;
+        raitoRoleCache.Clear();
+        raitoRoleCacheInvalidatedAt = invalidatedAt;
+    }
+
+    internal string GetRaitoCachedRole(ulong steamId64)
+        => loadedAdmins.ContainsKey(steamId64.ToString()) ? "OWNER" : raitoRoleCache.TryGetValue(steamId64, out var cached) ? cached.Role : "USER";
 
     private static string NormalizeRaitoSayMessage(string rawMessage)
     {

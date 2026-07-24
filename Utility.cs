@@ -310,6 +310,7 @@ namespace MatchZy
             {
                 HandlePlayoutConfig();
                 ExecuteChangedConvars();
+                ApplyRaitoServerRules();
             });
         }
 
@@ -322,8 +323,13 @@ namespace MatchZy
             lastBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.txt";
             lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.json";
 
-            // This is to reload the map once it is over so that all flags are reset accordingly
-            Server.ExecuteCommand("mp_match_end_restart true");
+            // Public/test matches use CS2's native next-map vote. Configured
+            // series retain MatchZy's explicit map progression.
+            Server.ExecuteCommand(!isMatchSetup &&
+                                  raitoConfig.MapVoteEnabled &&
+                                  raitoConfig.NativeEndMatchMapVoteEnabled
+                ? "mp_match_end_restart false"
+                : "mp_match_end_restart true");
 
             PrintToAllChat($"{ChatColors.Olive}MATCH LIVE");
             PrintToAllChat($"{ChatColors.Lime}MATCH LIVE");
@@ -851,6 +857,10 @@ namespace MatchZy
             int restartDelay = ConVar.Find("mp_match_restart_delay")!.GetPrimitiveValue<int>();
             int tvDelay = GetTvDelay();
             int requiredDelay = tvDelay + 15;
+            if (!isMatchSetup && raitoConfig.MapVoteEnabled)
+            {
+                requiredDelay = Math.Max(requiredDelay, raitoConfig.MapVoteDurationSeconds + 8);
+            }
             int tvFlushDelay = requiredDelay;
             if (tvDelay > 0.0)
             {
@@ -895,6 +905,8 @@ namespace MatchZy
             // Todo: Support BO3/BO5 in pugs as well
             if (!isMatchSetup)
             {
+                if (!raitoConfig.NativeEndMatchMapVoteEnabled &&
+                    BeginRaitoPublicMapVote(winnerName, t1score, t2score)) return;
                 EndSeries(winnerName, restartDelay - 1, t1score, t2score);
                 return;
             }

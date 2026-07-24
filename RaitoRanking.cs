@@ -20,7 +20,10 @@ public partial class MatchZy
             return;
         }
 
-        raitoRankWriter = new RaitoRankWriter(raitoDatabase, message => Log($"[BETHECHAMP RANK] {message}"));
+        raitoRankWriter = new RaitoRankWriter(
+            raitoDatabase,
+            NotifyRaitoXpEventsApplied,
+            message => Log($"[BETHECHAMP RANK] {message}"));
         RegisterEventHandler<EventRoundStart>(OnRaitoRankRoundStart, HookMode.Post);
         RegisterEventHandler<EventPlayerDeath>(OnRaitoRankPlayerDeath, HookMode.Post);
         RegisterEventHandler<EventRoundEnd>(OnRaitoRankRoundEnd, HookMode.Post);
@@ -49,7 +52,7 @@ public partial class MatchZy
         if (!IsRaitoRankedMatch()) return HookResult.Continue;
 
         CCSPlayerController? victim = @event.Userid;
-        if (!IsRaitoRankPlayer(victim)) return HookResult.Continue;
+        if (!IsRaitoRankCombatant(victim)) return HookResult.Continue;
         CCSPlayerController rankedVictim = victim!;
 
         int roundNumber = GetRaitoTrackedRoundNumber();
@@ -61,22 +64,23 @@ public partial class MatchZy
             assistedFlash = @event.Assistedflash,
             distance = @event.Distance
         };
-        var events = new List<RaitoXpEvent>
+        var events = new List<RaitoXpEvent>();
+        if (IsRaitoRankPlayer(rankedVictim))
         {
-            CreateRaitoXpEvent(
+            events.Add(CreateRaitoXpEvent(
                 RaitoXpEventType.Death,
                 rankedVictim,
                 roundNumber,
                 sourceTick,
                 xpDelta: -5,
                 deaths: 1,
-                counterparty: IsRaitoRankPlayer(@event.Attacker) ? @event.Attacker : null,
-                metadata: eventMetadata)
-        };
+                counterparty: IsRaitoRankCombatant(@event.Attacker) ? @event.Attacker : null,
+                metadata: eventMetadata));
+        }
 
         CCSPlayerController? attacker = @event.Attacker;
         bool enemyKill = IsRaitoRankPlayer(attacker)
-            && attacker!.SteamID != rankedVictim.SteamID
+            && attacker!.Slot != rankedVictim.Slot
             && attacker.TeamNum != rankedVictim.TeamNum;
         if (enemyKill)
         {
@@ -93,7 +97,7 @@ public partial class MatchZy
 
         CCSPlayerController? assister = @event.Assister;
         bool enemyAssist = IsRaitoRankPlayer(assister)
-            && assister!.SteamID != rankedVictim.SteamID
+            && assister!.Slot != rankedVictim.Slot
             && assister.TeamNum != rankedVictim.TeamNum
             && (!enemyKill || assister.SteamID != attacker!.SteamID);
         if (enemyAssist)
@@ -200,7 +204,7 @@ public partial class MatchZy
             mvps,
             roundNumber,
             sourceTick,
-            counterparty?.SteamID,
+            counterparty is null ? null : GetRaitoRankIdentity(counterparty),
             counterparty?.PlayerName,
             metadata,
             DateTime.UtcNow);
@@ -210,16 +214,23 @@ public partial class MatchZy
         isMatchLive && IsRaitoRankedSeries();
 
     private bool IsRaitoRankedSeries() =>
-        liveMatchId > 0 && !isRaitoTestMatch && !isPractice && !isDryRun;
+        liveMatchId > 0 && !isPractice && !isDryRun;
 
-    private bool IsRaitoRankPlayer(CCSPlayerController? player) =>
+    private bool IsRaitoRankCombatant(CCSPlayerController? player) =>
         IsPlayerValid(player)
-        && !player!.IsBot
-        && !player.IsHLTV
-        && player.SteamID > 0
+        && !player!.IsHLTV
+        && (!player.IsBot || isRaitoTestMatch)
         && player.TeamNum is (int)CsTeam.Terrorist or (int)CsTeam.CounterTerrorist
         && !matchzyTeam1.coach.Contains(player)
         && !matchzyTeam2.coach.Contains(player);
+
+    private bool IsRaitoRankPlayer(CCSPlayerController? player) =>
+        IsRaitoRankCombatant(player)
+        && !player!.IsBot
+        && player.SteamID > 0;
+
+    private static ulong GetRaitoRankIdentity(CCSPlayerController player) =>
+        player.SteamID > 0 ? player.SteamID : GetRaitoStatsSteamId(player);
 
     private int GetRaitoTrackedRoundNumber()
     {
@@ -317,6 +328,54 @@ public partial class MatchZy
             Log($"[BETHECHAMP RANK] Failed to queue {events.Count} XP event(s).");
         }
     }
+
+    private void NotifyRaitoXpEventsApplied(IReadOnlyCollection<RaitoAppliedXpEvent> appliedEvents)
+    {
+        RaitoAppliedXpEvent[] notifications = appliedEvents.ToArray();
+        Server.NextFrame(() =>
+        {
+            foreach (RaitoAppliedXpEvent notification in notifications)
+            {
+                CCSPlayerController? player = Utilities.GetPlayers()
+                    .FirstOrDefault(candidate =>
+                        IsPlayerValid(candidate)
+                        && !candidate!.IsBot
+                        && candidate.SteamID == notification.Event.SteamId64);
+                if (player is null) continue;
+
+                string reason = notification.Event.Type switch
+                {
+                    RaitoXpEventType.Kill => "a kill",
+                    RaitoXpEventType.Death => "dying",
+                    RaitoXpEventType.Assist => "an assist",
+                    RaitoXpEventType.RoundWin => "winning the round",
+                    RaitoXpEventType.RoundLoss => "losing the round",
+                    RaitoXpEventType.Mvp => "earning round MVP",
+                    _ => "a ranking event"
+                };
+                string totalXp = $"{ChatColors.Green}{notification.XpAfter}{ChatColors.Default}";
+
+                if (notification.AppliedDelta > 0)
+                {
+                    PrintToPlayerChat(
+                        player,
+                        $"You gained XP for {reason} {ChatColors.Green}[+{notification.AppliedDelta}]{ChatColors.Default} | Total XP: {totalXp}");
+                }
+                else if (notification.AppliedDelta < 0)
+                {
+                    PrintToPlayerChat(
+                        player,
+                        $"You lost XP for {reason} {ChatColors.LightRed}[{notification.AppliedDelta}]{ChatColors.Default} | Total XP: {totalXp}");
+                }
+                else
+                {
+                    PrintToPlayerChat(
+                        player,
+                        $"Your XP stayed the same for {reason} [0] | Total XP: {totalXp}");
+                }
+            }
+        });
+    }
 }
 
 internal abstract record RaitoRankWriteOperation;
@@ -327,14 +386,19 @@ internal sealed record RaitoRankFinalizeOperation(RaitoRankedMatchResult Result)
 internal sealed class RaitoRankWriter : IDisposable
 {
     private readonly RaitoDatabase database;
+    private readonly Action<IReadOnlyCollection<RaitoAppliedXpEvent>> onXpEventsApplied;
     private readonly Action<string> log;
     private readonly Channel<RaitoRankWriteOperation> queue;
     private readonly Task worker;
     private int disposed;
 
-    public RaitoRankWriter(RaitoDatabase database, Action<string> log)
+    public RaitoRankWriter(
+        RaitoDatabase database,
+        Action<IReadOnlyCollection<RaitoAppliedXpEvent>> onXpEventsApplied,
+        Action<string> log)
     {
         this.database = database;
+        this.onXpEventsApplied = onXpEventsApplied;
         this.log = log;
         queue = Channel.CreateUnbounded<RaitoRankWriteOperation>(new UnboundedChannelOptions
         {
@@ -363,7 +427,18 @@ internal sealed class RaitoRankWriter : IDisposable
         {
             try
             {
-                await ApplyWithRetry(operation);
+                IReadOnlyCollection<RaitoAppliedXpEvent> appliedEvents = await ApplyWithRetry(operation);
+                if (appliedEvents.Count > 0)
+                {
+                    try
+                    {
+                        onXpEventsApplied(appliedEvents);
+                    }
+                    catch (Exception ex)
+                    {
+                        log($"XP notification dispatch failed: {ex.Message}");
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -372,15 +447,14 @@ internal sealed class RaitoRankWriter : IDisposable
         }
     }
 
-    private async Task ApplyWithRetry(RaitoRankWriteOperation operation)
+    private async Task<IReadOnlyCollection<RaitoAppliedXpEvent>> ApplyWithRetry(RaitoRankWriteOperation operation)
     {
         int[] retryDelaysMs = [250, 1000];
         for (int attempt = 0; ; attempt++)
         {
             try
             {
-                Apply(operation);
-                return;
+                return Apply(operation);
             }
             catch when (attempt < retryDelaysMs.Length)
             {
@@ -389,19 +463,18 @@ internal sealed class RaitoRankWriter : IDisposable
         }
     }
 
-    private void Apply(RaitoRankWriteOperation operation)
+    private IReadOnlyCollection<RaitoAppliedXpEvent> Apply(RaitoRankWriteOperation operation)
     {
         switch (operation)
         {
             case RaitoRankStartOperation start:
                 database.StartRankedMatch(start.Context);
-                break;
+                return [];
             case RaitoXpEventsOperation events:
-                database.ApplyXpEvents(events.Context, events.Events);
-                break;
+                return database.ApplyXpEvents(events.Context, events.Events);
             case RaitoRankFinalizeOperation finalize:
                 database.FinalizeRankedMatch(finalize.Result);
-                break;
+                return [];
             default:
                 throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported rank write operation.");
         }

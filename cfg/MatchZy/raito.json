@@ -5,5 +5,13 @@
   "ServerPort": 27015,
   "Region": "Local",
   "MaxPlayers": 11,
+  "PublicSlots": 11,
+  "ReservedSlots": 1,
+  "AdminCallsEnabled": true,
+  "VoteKickImmunityEnabled": true,
+  "ReservedSlotEnabled": true,
+  "MapVoteEnabled": true,
+  "NativeEndMatchMapVoteEnabled": true,
+  "MapVoteDurationSeconds": 20,
   "HeartbeatIntervalSeconds": 10
 }

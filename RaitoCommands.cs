@@ -24,6 +24,8 @@ public partial class MatchZy
         string[] arguments = tokens.Skip(1).ToArray();
         switch (command)
         {
+            case "admin": ExecuteRaitoAdminCall(player, arguments); return true;
+            case "mapvote": ExecuteRaitoMapVote(player, arguments); return true;
             case "testmatch": ExecuteRaitoTestMatchCommand(player, arguments); return true;
             case "ban": ExecuteRaitoBanCommand(player, arguments); return true;
             case "unban": ExecuteRaitoUnbanCommand(player, arguments); return true;

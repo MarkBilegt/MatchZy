@@ -70,6 +70,12 @@ public sealed record RaitoXpEvent(
     object? Metadata = null,
     DateTime? OccurredAtUtc = null);
 
+public sealed record RaitoAppliedXpEvent(
+    RaitoXpEvent Event,
+    int XpBefore,
+    int XpAfter,
+    int AppliedDelta);
+
 public sealed record RaitoRankedMatchResult(
     RaitoRankedMatchContext Context,
     int Team1Score,
@@ -84,6 +90,9 @@ public sealed record RaitoGameCommand(
     ulong TargetSteamId64,
     string TargetName,
     string Reason);
+
+public sealed record RaitoMapPoolItem(string MapName, string DisplayName);
+public sealed record RaitoAdminCallUpdate(string Id, ulong CallerSteamId64, string Status);
 
 public sealed class RaitoDatabase : IDisposable
 {
@@ -135,7 +144,12 @@ public sealed class RaitoDatabase : IDisposable
 
         using var connection = OpenConnection();
         using var command = new MySqlCommand(
-            "SELECT `id`, `role` FROM `User` WHERE `steamId64` = @steamId64 LIMIT 1",
+            """
+            SELECT `id`,
+                   CASE WHEN `roleExpiresAt` IS NOT NULL AND `roleExpiresAt` <= UTC_TIMESTAMP(3)
+                        THEN 'USER' ELSE `role` END AS `activeRole`
+            FROM `User` WHERE `steamId64` = @steamId64 LIMIT 1
+            """,
             connection);
         command.Parameters.AddWithValue("@steamId64", steamId64.ToString());
 
@@ -145,6 +159,173 @@ public sealed class RaitoDatabase : IDisposable
         userId = reader.IsDBNull(0) ? null : reader.GetString(0);
         role = reader.IsDBNull(1) ? "USER" : reader.GetString(1).ToUpperInvariant();
         return true;
+    }
+
+    public DateTime GetRoleCacheInvalidationTimestamp()
+    {
+        using var connection = OpenConnection();
+        using var command = new MySqlCommand("SELECT `updatedAt` FROM `RoleCacheState` WHERE `id` = 1", connection);
+        object? value = command.ExecuteScalar();
+        return value is DateTime timestamp ? timestamp : DateTime.MinValue;
+    }
+
+    public string CreateAdminCall(ulong steamId64, string callerName, string serverId, string mapName, string matchState, string reason)
+    {
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var check = new MySqlCommand("""
+            SELECT `createdAt` FROM `AdminCall`
+            WHERE `callerSteamId64` = @steamId64 AND `serverId` = @serverId
+              AND `status` IN ('OPEN','CLAIMED')
+            ORDER BY `createdAt` DESC LIMIT 1 FOR UPDATE
+            """, connection, transaction))
+        {
+            check.Parameters.AddWithValue("@steamId64", steamId64.ToString());
+            check.Parameters.AddWithValue("@serverId", serverId);
+            object? existing = check.ExecuteScalar();
+            if (existing is not null) throw new InvalidOperationException("You already have an open admin call on this server.");
+        }
+        using (var cooldown = new MySqlCommand("""
+            SELECT `createdAt` FROM `AdminCall`
+            WHERE `callerSteamId64` = @steamId64 AND `serverId` = @serverId
+            ORDER BY `createdAt` DESC LIMIT 1
+            """, connection, transaction))
+        {
+            cooldown.Parameters.AddWithValue("@steamId64", steamId64.ToString());
+            cooldown.Parameters.AddWithValue("@serverId", serverId);
+            object? value = cooldown.ExecuteScalar();
+            if (value is DateTime createdAt && createdAt > DateTime.UtcNow.AddMinutes(-5))
+                throw new InvalidOperationException("Please wait five minutes before creating another admin call.");
+        }
+
+        string id = Guid.NewGuid().ToString("N");
+        DateTime now = DateTime.UtcNow;
+        using var insert = new MySqlCommand("""
+            INSERT INTO `AdminCall`
+              (`id`,`serverId`,`callerSteamId64`,`callerName`,`reason`,`mapName`,`matchState`,`status`,`createdAt`,`expiresAt`)
+            VALUES
+              (@id,@serverId,@steamId64,@callerName,@reason,@mapName,@matchState,'OPEN',@now,@expiresAt)
+            """, connection, transaction);
+        insert.Parameters.AddWithValue("@id", id);
+        insert.Parameters.AddWithValue("@serverId", serverId);
+        insert.Parameters.AddWithValue("@steamId64", steamId64.ToString());
+        insert.Parameters.AddWithValue("@callerName", callerName);
+        insert.Parameters.AddWithValue("@reason", reason);
+        insert.Parameters.AddWithValue("@mapName", mapName);
+        insert.Parameters.AddWithValue("@matchState", matchState);
+        insert.Parameters.AddWithValue("@now", now);
+        insert.Parameters.AddWithValue("@expiresAt", now.AddMinutes(30));
+        insert.ExecuteNonQuery();
+        transaction.Commit();
+        return id;
+    }
+
+    public void ExpireAdminCallsForMapChange(string serverId, string currentMap)
+    {
+        using var connection = OpenConnection();
+        using var command = new MySqlCommand("""
+            UPDATE `AdminCall` SET `status` = 'EXPIRED', `resolvedAt` = UTC_TIMESTAMP(3)
+            WHERE `serverId` = @serverId AND `status` IN ('OPEN','CLAIMED')
+              AND (`expiresAt` <= UTC_TIMESTAMP(3) OR (`mapName` IS NOT NULL AND `mapName` <> @currentMap))
+            """, connection);
+        command.Parameters.AddWithValue("@serverId", serverId);
+        command.Parameters.AddWithValue("@currentMap", currentMap);
+        command.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<RaitoAdminCallUpdate> GetRecentAdminCallUpdates(string serverId)
+    {
+        var result = new List<RaitoAdminCallUpdate>();
+        using var connection = OpenConnection();
+        using var command = new MySqlCommand("""
+            SELECT `id`,`callerSteamId64`,`status` FROM `AdminCall`
+            WHERE `serverId` = @serverId AND `createdAt` >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 HOUR)
+            """, connection);
+        command.Parameters.AddWithValue("@serverId", serverId);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (ulong.TryParse(reader.GetString(1), out ulong steamId64)) result.Add(new(reader.GetString(0), steamId64, reader.GetString(2)));
+        }
+        return result;
+    }
+
+    public IReadOnlyList<RaitoMapPoolItem> GetEnabledMapPool()
+    {
+        var result = new List<RaitoMapPoolItem>();
+        using var connection = OpenConnection();
+        using var command = new MySqlCommand("SELECT `mapName`,`displayName` FROM `MapPoolEntry` WHERE `isEnabled` = 1 ORDER BY `displayOrder`,`mapName`", connection);
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) result.Add(new(reader.GetString(0), reader.GetString(1)));
+        return result;
+    }
+
+    public IReadOnlyList<string> GetRecentMaps(string serverId, int count)
+    {
+        var result = new List<string>();
+        using var connection = OpenConnection();
+        using var command = new MySqlCommand("SELECT `mapName` FROM `MapRotationHistory` WHERE `serverId` = @serverId ORDER BY `playedAt` DESC LIMIT @count", connection);
+        command.Parameters.AddWithValue("@serverId", serverId);
+        command.Parameters.AddWithValue("@count", count);
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) result.Add(reader.GetString(0));
+        return result;
+    }
+
+    public string CreateMapVote(string serverId, string currentMap, IReadOnlyList<string> candidates, DateTime endsAt)
+    {
+        string id = Guid.NewGuid().ToString("N");
+        using var connection = OpenConnection();
+        using var command = new MySqlCommand("""
+            INSERT INTO `MapVote` (`id`,`serverId`,`currentMap`,`candidates`,`status`,`startedAt`,`endsAt`)
+            VALUES (@id,@serverId,@currentMap,@candidates,'OPEN',UTC_TIMESTAMP(3),@endsAt)
+            """, connection);
+        command.Parameters.AddWithValue("@id", id);
+        command.Parameters.AddWithValue("@serverId", serverId);
+        command.Parameters.AddWithValue("@currentMap", currentMap);
+        command.Parameters.AddWithValue("@candidates", JsonSerializer.Serialize(candidates));
+        command.Parameters.AddWithValue("@endsAt", endsAt);
+        command.ExecuteNonQuery();
+        return id;
+    }
+
+    public void UpsertMapVoteBallot(string voteId, ulong steamId64, string playerName, string mapName)
+    {
+        using var connection = OpenConnection();
+        using var command = new MySqlCommand("""
+            INSERT INTO `MapVoteBallot` (`id`,`mapVoteId`,`steamId64`,`playerName`,`mapName`,`createdAt`,`updatedAt`)
+            VALUES (@id,@voteId,@steamId64,@playerName,@mapName,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))
+            ON DUPLICATE KEY UPDATE `playerName`=VALUES(`playerName`),`mapName`=VALUES(`mapName`),`updatedAt`=VALUES(`updatedAt`)
+            """, connection);
+        command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+        command.Parameters.AddWithValue("@voteId", voteId);
+        command.Parameters.AddWithValue("@steamId64", steamId64.ToString());
+        command.Parameters.AddWithValue("@playerName", playerName);
+        command.Parameters.AddWithValue("@mapName", mapName);
+        command.ExecuteNonQuery();
+    }
+
+    public void CompleteMapVote(string voteId, string serverId, string winnerMap, IReadOnlyDictionary<string, int> totals)
+    {
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var update = new MySqlCommand("UPDATE `MapVote` SET `status`='COMPLETED',`winnerMap`=@winner,`totals`=@totals,`completedAt`=UTC_TIMESTAMP(3) WHERE `id`=@id AND `status`='OPEN'", connection, transaction))
+        {
+            update.Parameters.AddWithValue("@winner", winnerMap);
+            update.Parameters.AddWithValue("@id", voteId);
+            update.Parameters.AddWithValue("@totals", JsonSerializer.Serialize(totals));
+            if (update.ExecuteNonQuery() != 1) { transaction.Rollback(); return; }
+        }
+        using (var history = new MySqlCommand("INSERT INTO `MapRotationHistory` (`id`,`serverId`,`mapName`,`playedAt`) VALUES (@id,@serverId,@mapName,UTC_TIMESTAMP(3))", connection, transaction))
+        {
+            history.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+            history.Parameters.AddWithValue("@serverId", serverId);
+            using var currentMap = new MySqlCommand("SELECT `currentMap` FROM `MapVote` WHERE `id`=@id", connection, transaction);
+            currentMap.Parameters.AddWithValue("@id", voteId);
+            history.Parameters.AddWithValue("@mapName", Convert.ToString(currentMap.ExecuteScalar()) ?? winnerMap);
+            history.ExecuteNonQuery();
+        }
+        transaction.Commit();
     }
 
     public void StartRankedMatch(RaitoRankedMatchContext context)
@@ -163,14 +344,15 @@ public sealed class RaitoDatabase : IDisposable
         }
     }
 
-    public void ApplyXpEvents(RaitoRankedMatchContext context, IEnumerable<RaitoXpEvent> events)
+    public IReadOnlyList<RaitoAppliedXpEvent> ApplyXpEvents(RaitoRankedMatchContext context, IEnumerable<RaitoXpEvent> events)
     {
         List<RaitoXpEvent> pendingEvents = events.ToList();
 
-        if (pendingEvents.Count == 0) return;
+        if (pendingEvents.Count == 0) return [];
 
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction();
+        var appliedEvents = new List<RaitoAppliedXpEvent>(pendingEvents.Count);
         try
         {
             EnsureRankedMatch(connection, transaction, context, DateTime.UtcNow);
@@ -310,9 +492,11 @@ public sealed class RaitoDatabase : IDisposable
                 updateMatchPlayer.Parameters.AddWithValue("@mvps", xpEvent.Mvps);
                 updateMatchPlayer.Parameters.AddWithValue("@now", occurredAt);
                 updateMatchPlayer.ExecuteNonQuery();
+                appliedEvents.Add(new RaitoAppliedXpEvent(xpEvent, progress.Xp, xpAfter, appliedDelta));
             }
 
             transaction.Commit();
+            return appliedEvents;
         }
         catch
         {

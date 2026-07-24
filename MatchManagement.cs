@@ -613,6 +613,7 @@ namespace MatchZy
             });
 
             if (resetCvarsOnSeriesEnd) ResetChangedConvars();
+            ApplyRaitoServerRules();
             isMatchLive = false;
             AddTimer(restartDelay, () => {
                 ResetMatch(false);

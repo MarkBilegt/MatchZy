@@ -143,7 +143,7 @@ public partial class MatchZy
         });
         ReplyToUserCommand(actor, $"Starting BETHECHAMP {(fullLength ? "MR12" : "MR3")} test match with {terroristBots + counterTerroristBots} bots.");
         Logger.LogInformation("[BETHECHAMP TEST] Preparing {Format} with {Humans} humans and {Bots} bots.", fullLength ? "MR12" : "MR3", humans.Count, terroristBots + counterTerroristBots);
-        PrintToAllChat($"{ChatColors.Green}TEST MATCH{ChatColors.Default} | {(fullLength ? "MR12" : "MR3")} | Filling teams to 5v5. This match is excluded from ranking.");
+        PrintToAllChat($"{ChatColors.Green}TEST MATCH{ChatColors.Default} | {(fullLength ? "MR12" : "MR3")} | Filling teams to 5v5. Ranking is enabled for human players.");
     }
 
     private void BeginRaitoTestMatchLive()
@@ -175,7 +175,8 @@ public partial class MatchZy
 
         int maxRounds = raitoTestFullLength ? RaitoTestFullMaxRounds : RaitoTestShortMaxRounds;
         int totalBots = raitoTestTerroristBotTarget + raitoTestCounterTerroristBotTarget;
-        Server.ExecuteCommand($"mp_maxrounds {maxRounds};mp_overtime_enable 0;mp_match_can_clinch 1;mp_halftime 1;mp_limitteams 0;mp_autoteambalance 0;bot_quota_mode normal;bot_quota {totalBots};bot_defer_to_human_goals 0;bot_defer_to_human_items 0;bot_difficulty 2;");
+        bool nativeMapVote = raitoConfig.MapVoteEnabled && raitoConfig.NativeEndMatchMapVoteEnabled;
+        Server.ExecuteCommand($"mp_maxrounds {maxRounds};mp_overtime_enable 0;mp_match_can_clinch 1;mp_halftime 1;mp_limitteams 0;mp_autoteambalance 0;mp_friendlyfire 0;mp_endmatch_votenextmap {(nativeMapVote ? 1 : 0)};mp_endmatch_votenextmap_keepcurrent 0;mp_endmatch_votenextleveltime {raitoConfig.MapVoteDurationSeconds};mp_match_end_restart {(nativeMapVote ? 0 : 1)};{(nativeMapVote ? "mapgroup mg_active;" : string.Empty)}bot_quota_mode normal;bot_quota {totalBots};bot_defer_to_human_goals 0;bot_defer_to_human_items 0;bot_difficulty 2;");
         if (!raitoTestFullLength)
         {
             Server.ExecuteCommand("mp_freezetime 2;mp_round_restart_delay 2;mp_halftime_duration 3;mp_team_intro_time 0;");
