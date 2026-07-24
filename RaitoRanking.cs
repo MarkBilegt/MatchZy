@@ -345,12 +345,12 @@ public partial class MatchZy
 
                 string reason = notification.Event.Type switch
                 {
-                    RaitoXpEventType.Kill => "a kill",
-                    RaitoXpEventType.Death => "dying",
-                    RaitoXpEventType.Assist => "an assist",
-                    RaitoXpEventType.RoundWin => "winning the round",
-                    RaitoXpEventType.RoundLoss => "losing the round",
-                    RaitoXpEventType.Mvp => "earning round MVP",
+                    RaitoXpEventType.Kill => "хүн алж",
+                    RaitoXpEventType.Death => "үхэж",
+                    RaitoXpEventType.Assist => "дэмжлэг",
+                    RaitoXpEventType.RoundWin => "раундыг авж",
+                    RaitoXpEventType.RoundLoss => "раунд алдаж",
+                    RaitoXpEventType.Mvp => "раундын MVP авч",
                     _ => "a ranking event"
                 };
                 string totalXp = $"{ChatColors.Green}{notification.XpAfter}{ChatColors.Default}";
@@ -359,13 +359,13 @@ public partial class MatchZy
                 {
                     PrintToPlayerChat(
                         player,
-                        $"You gained XP for {reason} {ChatColors.Green}[+{notification.AppliedDelta}]{ChatColors.Default} | Total XP: {totalXp}");
+                        $"Та {reason} {ChatColors.Green}[+{notification.AppliedDelta}]{ChatColors.Default} оноо нэмлээ | Нийт оноо: {totalXp}");
                 }
                 else if (notification.AppliedDelta < 0)
                 {
                     PrintToPlayerChat(
                         player,
-                        $"You lost XP for {reason} {ChatColors.LightRed}[{notification.AppliedDelta}]{ChatColors.Default} | Total XP: {totalXp}");
+                        $"Та {reason} {ChatColors.LightRed}[{notification.AppliedDelta}]{ChatColors.Default} оноо алдлаа | Нийт оноо: {totalXp}");
                 }
                 else
                 {

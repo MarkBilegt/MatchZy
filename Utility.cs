@@ -798,7 +798,7 @@ namespace MatchZy
             }
             if (showCreditsOnMatchStart.Value)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Match control online{ChatColors.Default}. GLHF.");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Тоглолт эхэллээ!!!{ChatColors.Default}. GLHF.");
             }
             if (matchStartMessage.Value.Trim() != "" && matchStartMessage.Value.Trim() != "\"\"")
             {

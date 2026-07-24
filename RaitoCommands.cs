@@ -29,9 +29,9 @@ public partial class MatchZy
             case "testmatch": ExecuteRaitoTestMatchCommand(player, arguments); return true;
             case "ban": ExecuteRaitoBanCommand(player, arguments); return true;
             case "unban": ExecuteRaitoUnbanCommand(player, arguments); return true;
-            case "mute": ExecuteRaitoModerationCommand(player, arguments, "css_mute", "Mute", "mutedBy", "player.mute", "You are muted and cannot use chat."); return true;
+            case "mute": ExecuteRaitoModerationCommand(player, arguments, "css_mute", "Mute", "mutedBy", "player.mute", "Таны чатыг админ хаасан байна."); return true;
             case "unmute": ExecuteRaitoRemoveModerationCommand(player, arguments, "css_unmute", "Mute", "player.unmute"); return true;
-            case "gag": ExecuteRaitoModerationCommand(player, arguments, "css_gag", "Gag", "gaggedBy", "player.gag", "You are voice-gagged.", true); return true;
+            case "gag": ExecuteRaitoModerationCommand(player, arguments, "css_gag", "Gag", "gaggedBy", "player.gag", "Таны микийг админ хаагдсан байна.", true); return true;
             case "ungag": ExecuteRaitoRemoveModerationCommand(player, arguments, "css_ungag", "Gag", "player.ungag", true); return true;
             case "kick": ExecuteRaitoKickCommand(player, arguments); return true;
             case "team": ExecuteRaitoTeamCommand(player, arguments); return true;
@@ -59,7 +59,7 @@ public partial class MatchZy
 
         if (arguments.Count < 1)
         {
-            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.ban <player> [30m|2h|7d|perm] [reason]{ChatColors.Default}");
+            ReplyToUserCommand(player, $"Комманд: {ChatColors.Green}.ban <player> [30m|2h|7d|perm] [шалтгаан]{ChatColors.Default}");
             return;
         }
 
@@ -67,7 +67,7 @@ public partial class MatchZy
         RaitoTarget? target = ResolveTarget(targetArg, allowOfflineSteamId: true);
         if (target is null)
         {
-            ReplyToUserCommand(player, "Player lookup failed. Try a slot, name, or SteamID64.");
+            ReplyToUserCommand(player, "Тоглогч олдсонгүй. Try a slot, name, or SteamID64.");
             return;
         }
 
@@ -86,7 +86,7 @@ public partial class MatchZy
         }
     }
 
-    [ConsoleCommand("css_unban", "Removes a player ban by SteamID64")]
+    [ConsoleCommand("css_unban", "SteamID64 ашиглан бан гаргах")]
     public void OnRaitoUnbanCommand(CCSPlayerController? player, CommandInfo command)
         => ExecuteRaitoUnbanCommand(player, GetCommandArguments(command));
 
@@ -100,7 +100,7 @@ public partial class MatchZy
 
         if (raitoDatabase is null || arguments.Count < 1 || !ulong.TryParse(arguments[0], out ulong steamId64))
         {
-            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.unban <steamid64>{ChatColors.Default}");
+            ReplyToUserCommand(player, $"Комманд: {ChatColors.Green}.unban <steamid64>{ChatColors.Default}");
             return;
         }
 
@@ -117,23 +117,23 @@ public partial class MatchZy
         }
     }
 
-    [ConsoleCommand("css_mute", "Mutes a player's chat")]
+    [ConsoleCommand("css_mute", "Тоглогчийн чатыг хаах")]
     public void OnRaitoMuteCommand(CCSPlayerController? player, CommandInfo command)
-        => ExecuteRaitoModerationCommand(player, GetCommandArguments(command), "css_mute", "Mute", "mutedBy", "player.mute", "You are muted and cannot use chat.");
+        => ExecuteRaitoModerationCommand(player, GetCommandArguments(command), "css_mute", "Mute", "mutedBy", "player.mute", "Таны чатыг админ хаасан байна.");
 
-    [ConsoleCommand("css_unmute", "Removes a chat mute")]
+    [ConsoleCommand("css_unmute", "Тоглогчийн чатыг нээх")]
     public void OnRaitoUnmuteCommand(CCSPlayerController? player, CommandInfo command)
         => ExecuteRaitoRemoveModerationCommand(player, GetCommandArguments(command), "css_unmute", "Mute", "player.unmute");
 
-    [ConsoleCommand("css_gag", "Gags a player's voice")]
+    [ConsoleCommand("css_gag", "Тоглогчийн микрофоныг хаах")]
     public void OnRaitoGagCommand(CCSPlayerController? player, CommandInfo command)
-        => ExecuteRaitoModerationCommand(player, GetCommandArguments(command), "css_gag", "Gag", "gaggedBy", "player.gag", "You are voice-gagged.", true);
+        => ExecuteRaitoModerationCommand(player, GetCommandArguments(command), "css_gag", "Gag", "gaggedBy", "player.gag", "Таны микийг админ хаагдсан байна.", true);
 
-    [ConsoleCommand("css_ungag", "Removes a voice gag")]
+    [ConsoleCommand("css_ungag", "Тоглогчийн микрофоныг нээх")]
     public void OnRaitoUngagCommand(CCSPlayerController? player, CommandInfo command)
         => ExecuteRaitoRemoveModerationCommand(player, GetCommandArguments(command), "css_ungag", "Gag", "player.ungag", true);
 
-    [ConsoleCommand("css_kick", "Kicks a player")]
+    [ConsoleCommand("css_kick", "Тоглогчийг серверээс хөөх")]
     public void OnRaitoKickCommand(CCSPlayerController? player, CommandInfo command)
         => ExecuteRaitoKickCommand(player, GetCommandArguments(command));
 
@@ -147,18 +147,18 @@ public partial class MatchZy
 
         if (arguments.Count < 1)
         {
-            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.kick <player> [reason]{ChatColors.Default}");
+            ReplyToUserCommand(player, $"Комманд: {ChatColors.Green}.kick <player> [шалтгаан]{ChatColors.Default}");
             return;
         }
 
         RaitoTarget? target = ResolveTarget(arguments[0], allowOfflineSteamId: false);
         if (target?.Player is null)
         {
-            ReplyToUserCommand(player, "No matching online player.");
+            ReplyToUserCommand(player, "Тоглогч олдсонгүй.");
             return;
         }
 
-        string reason = GetRemainingArgs(arguments, 1, "Kicked by BETHECHAMP admin");
+        string reason = GetRemainingArgs(arguments, 1, "Админ тоглогчийг серверээс хөөлөө.");
         KickTarget(target.Player, reason);
         try
         {
@@ -172,7 +172,7 @@ public partial class MatchZy
         Server.PrintToChatAll($" {ChatColors.Green}[BETHECHAMP]{ChatColors.Default} Discipline | {ChatColors.Red}{target.PlayerName}{ChatColors.Default} removed | {reason}");
     }
 
-    [ConsoleCommand("css_team", "Moves player(s) to CT, T, or spectator")]
+    [ConsoleCommand("css_team", "Тоглогчийг CT, T, эсвэл spectator руу шилжүүлэх")]
     public void OnRaitoTeamCommand(CCSPlayerController? player, CommandInfo command)
         => ExecuteRaitoTeamCommand(player, GetCommandArguments(command));
 
@@ -186,14 +186,14 @@ public partial class MatchZy
 
         if (arguments.Count < 2 || !TryParseTeam(arguments[1], out CsTeam team, out string teamName))
         {
-            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.team <player|@all> <ct|t|spec>{ChatColors.Default}");
+            ReplyToUserCommand(player, $"Комманд: {ChatColors.Green}.team <player|@all> <ct|t|spec>{ChatColors.Default}");
             return;
         }
 
         var targets = ResolveTargets(arguments[0]).ToList();
         if (targets.Count == 0)
         {
-            ReplyToUserCommand(player, "No matching online player.");
+            ReplyToUserCommand(player, "Тоглогч олдсонгүй.");
             return;
         }
 
@@ -224,14 +224,14 @@ public partial class MatchZy
 
         if (raitoDatabase is null || arguments.Count < 1)
         {
-            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.{commandName[4..]} <player> [30m|2h|7d|perm] [reason]{ChatColors.Default}");
+            ReplyToUserCommand(player, $"Комманд: {ChatColors.Green}.{commandName[4..]} <player> [30m|2h|7d|perm] [шалтгаан]{ChatColors.Default}");
             return;
         }
 
         RaitoTarget? target = ResolveTarget(arguments[0], allowOfflineSteamId: false);
         if (target?.Player is null)
         {
-            ReplyToUserCommand(player, "No matching online player.");
+            ReplyToUserCommand(player, "Тоглогч олдсонгүй.");
             return;
         }
 
@@ -260,14 +260,14 @@ public partial class MatchZy
 
         if (raitoDatabase is null || arguments.Count < 1)
         {
-            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.{commandName[4..]} <player>{ChatColors.Default}");
+            ReplyToUserCommand(player, $"Комманд: {ChatColors.Green}.{commandName[4..]} <player>{ChatColors.Default}");
             return;
         }
 
         RaitoTarget? target = ResolveTarget(arguments[0], allowOfflineSteamId: true);
         if (target is null)
         {
-            ReplyToUserCommand(player, "Player lookup failed.");
+            ReplyToUserCommand(player, "Тоглогч олдсонгүй.");
             return;
         }
 
@@ -341,7 +341,7 @@ public partial class MatchZy
             reasonStart++;
         }
 
-        reason = GetRemainingArgs(arguments, reasonStart, "Action applied by BETHECHAMP admin");
+        reason = GetRemainingArgs(arguments, reasonStart, "Action applied by admin");
     }
 
     private static bool TryParseDuration(string value, out TimeSpan? duration)

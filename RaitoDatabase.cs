@@ -96,6 +96,8 @@ public sealed record RaitoAdminCallUpdate(string Id, ulong CallerSteamId64, stri
 
 public sealed class RaitoDatabase : IDisposable
 {
+    private const int AdminCallPlayerCooldownMinutes = 5;
+    private const int AdminCallServerCooldownSeconds = 30;
     private readonly string _connectionString;
     private bool _disposed;
 
@@ -171,6 +173,7 @@ public sealed class RaitoDatabase : IDisposable
 
     public string CreateAdminCall(ulong steamId64, string callerName, string serverId, string mapName, string matchState, string reason)
     {
+        DateTime now = DateTime.UtcNow;
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction();
         using (var check = new MySqlCommand("""
@@ -194,12 +197,26 @@ public sealed class RaitoDatabase : IDisposable
             cooldown.Parameters.AddWithValue("@steamId64", steamId64.ToString());
             cooldown.Parameters.AddWithValue("@serverId", serverId);
             object? value = cooldown.ExecuteScalar();
-            if (value is DateTime createdAt && createdAt > DateTime.UtcNow.AddMinutes(-5))
-                throw new InvalidOperationException("Please wait five minutes before creating another admin call.");
+            if (value is DateTime createdAt && createdAt > now.AddMinutes(-AdminCallPlayerCooldownMinutes))
+                throw new InvalidOperationException($"Please wait {AdminCallPlayerCooldownMinutes} minutes before creating another admin call.");
+        }
+        using (var serverCooldown = new MySqlCommand("""
+            SELECT `createdAt` FROM `AdminCall`
+            WHERE `serverId` = @serverId
+            ORDER BY `createdAt` DESC LIMIT 1 FOR UPDATE
+            """, connection, transaction))
+        {
+            serverCooldown.Parameters.AddWithValue("@serverId", serverId);
+            object? value = serverCooldown.ExecuteScalar();
+            if (value is DateTime createdAt)
+            {
+                int remainingSeconds = (int)Math.Ceiling((createdAt.AddSeconds(AdminCallServerCooldownSeconds) - now).TotalSeconds);
+                if (remainingSeconds > 0)
+                    throw new InvalidOperationException($"An admin call was just sent. Please wait {remainingSeconds} seconds and try again.");
+            }
         }
 
         string id = Guid.NewGuid().ToString("N");
-        DateTime now = DateTime.UtcNow;
         using var insert = new MySqlCommand("""
             INSERT INTO `AdminCall`
               (`id`,`serverId`,`callerSteamId64`,`callerName`,`reason`,`mapName`,`matchState`,`status`,`createdAt`,`expiresAt`)

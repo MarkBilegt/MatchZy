@@ -13,6 +13,7 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.tac` Starts a tactical timeout
 - `.coach <side>` Starts coaching the specified side. Example: `.coach t` to start coaching terrorist side!
 - `.uncoach` Leaves coaching slot
+- `!admin <reason>` Privately calls staff through Discord. The reason must be 5-200 characters. One open call is allowed per player, with a five-minute player cooldown and a 30-second server-wide cooldown.
 
 # Practice Mode Commands
 
