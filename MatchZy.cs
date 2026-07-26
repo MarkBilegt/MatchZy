@@ -8,20 +8,19 @@ using CounterStrikeSharp.API.Modules.Events;
 
 namespace MatchZy
 {
-    [MinimumApiVersion(227)]
+    [MinimumApiVersion(371)]
     public partial class MatchZy : BasePlugin
     {
 
         public override string ModuleName => "BETHECHAMP Match Control";
 
-        public override string ModuleVersion => "0.8.18";
+        public override string ModuleVersion => "0.8.19-bethechamp.1";
 
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
         public override string ModuleDescription => "BETHECHAMP match, scrim, and practice control for CS2.";
 
         public string chatPrefix = $"[{ChatColors.Green}BETHECHAMP{ChatColors.Default}]";
-        public string adminChatPrefix = $"[{ChatColors.Green}BETHECHAMP ADMIN{ChatColors.Default}]";
 
         // Plugin start phase data
         public bool isPractice = false;
@@ -56,9 +55,6 @@ namespace MatchZy
         private Dictionary<int, bool> playerReadyStatus = new Dictionary<int, bool>();
         private Dictionary<int, CCSPlayerController> playerData = new Dictionary<int, CCSPlayerController>();
 
-        // Admin Data
-        private Dictionary<string, string> loadedAdmins = new Dictionary<string, string>();
-
         // Timers
         public CounterStrikeSharp.API.Modules.Timers.Timer? unreadyPlayerMessageTimer = null;
         public CounterStrikeSharp.API.Modules.Timers.Timer? sideSelectionMessageTimer = null;
@@ -86,8 +82,6 @@ namespace MatchZy
     
         public override void Load(bool hotReload) {
             
-            LoadAdmins();
-
             database.InitializeDatabase(ModuleDirectory);
             InitializeRaitoIntegration();
 
@@ -144,7 +138,6 @@ namespace MatchZy
                 { ".settings", OnMatchSettingsCommand },
                 { ".whitelist", OnWLCommand },
                 { ".globalnades", OnSaveNadesAsGlobalCommand },
-                { ".reload_admins", OnReloadAdmins },
                 { ".tactics", OnPracCommand },
                 { ".prac", OnPracCommand },
                 { ".showspawns", OnShowSpawnsCommand },
@@ -178,7 +171,7 @@ namespace MatchZy
                 { ".spec", OnSpecCommand },
                 { ".fas", OnFASCommand },
                 { ".watchme", OnFASCommand },
-                { ".last", OnLastCommand },
+                { ".lastnade", OnLastCommand },
                 { ".throw", OnRethrowCommand },
                 { ".rethrow", OnRethrowCommand },
                 { ".rt", OnRethrowCommand },
@@ -395,7 +388,7 @@ namespace MatchZy
                     commandActions[message](player, null);
                 }
 
-                if (message.StartsWith(".map"))
+                if (message == ".matchmap")
                 {
                     HandleMapChangeCommand(player, messageCommandArg);
                 }
@@ -407,25 +400,6 @@ namespace MatchZy
                 if (message.StartsWith(".restore"))
                 {
                     HandleRestoreCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".asay"))
-                {
-                    if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
-                    {
-                        if (messageCommandArg != "")
-                        {
-                            Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
-                        }
-                        else
-                        {
-                            // ReplyToUserCommand(player, "Usage: .asay <message>");
-                            ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
-                        }
-                    }
-                    else
-                    {
-                        SendPlayerNotAdminMessage(player);
-                    }
                 }
                 if (message.StartsWith(".savenade") || message.StartsWith(".sn"))
                 {
@@ -470,18 +444,6 @@ namespace MatchZy
                 if (message.StartsWith(".team2"))
                 {
                     HandleTeamNameChangeCommand(player, messageCommandArg, 2);
-                }
-                if (message.StartsWith(".rcon"))
-                {
-                    if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
-                    {
-                        Server.ExecuteCommand(messageCommandArg);
-                        ReplyToUserCommand(player, "Server command dispatched.");
-                    }
-                    else
-                    {
-                        SendPlayerNotAdminMessage(player);
-                    }
                 }
                 if (message.StartsWith(".coach"))
                 {

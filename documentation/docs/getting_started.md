@@ -12,4 +12,4 @@ Below are some basic admin commands which can be used for the initial configurat
 - `.restart` Force restarts/resets a match.
 - `.readyrequired <number>` Sets the number of ready players required to start the match. If set to 0, all connected players will have to ready-up to start the match.
 - `.roundknife` Toggles the knife round. If disabled, match will directly go from Warmup phase to Live phase.
-- `.map <mapname>` Changes the map
+- `.matchmap <mapname>` Changes the map for MatchZy

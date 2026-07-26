@@ -3,49 +3,18 @@
 All the configuration files related to MatchZy can be found in `csgo/cfg/MatchZy` (If you have extracted the contents properly, `MatchZy` folder should be there inside the cfg folder).
 
 ### Creating Admins
-There are two ways to create an admin for MatchZy; you can choose the most convenient one according to your preference.
 
-1. **Using CSSharp's Admin system:**
+This BETHECHAMP build uses SimpleAdmin as the only in-game admin authority. Create administrators and groups through SimpleAdmin; MatchZy reads the permissions that SimpleAdmin publishes to CounterStrikeSharp. The legacy `cfg/MatchZy/admins.json` file does not grant MatchZy command access.
 
-    You can create a new entry in the `/addons/counterstrikesharp/configs/admins.json` file with appropirate flags like mentioned in the below example:
-    ```json
-    {
-    "WD-": {
-        "identity": "76561198154367261",
-        "flags": [
-        "@css/root"
-        ]
-    },
-    "Another admin": {
-        "identity": "SteamID 2",
-        "flags": [
-        "@css/config",
-        "@css/rcon"
-        ]
-    }
-    }
-    ```
+MatchZy permission flags:
 
-    Flag-wise permissions:
+- `@css/root`: all MatchZy and SimpleAdmin commands
+- `@css/config`: match configuration commands
+- `@custom/prac`: practice commands
+- `@css/map`: MatchZy map/mode commands
+- `@css/reservation`: reserved-slot access
 
-    - `@css/root`: Grants access to all admin commands
-    - `@css/config`: Grants access to config related admin commands
-    - `@custom/prac`: Grants access to practice related admin commands
-    - `@css/map`: Grants access to change map and toggle practice mode
-    - `@css/rcon`: Grants access to trigger RCON commands using `!rcon <command>`
-    - `@css/chat`: Grants access to send admin chat messages using `!asay <message>`
-
-
-2. **Using MatchZy's Admin system:**
-
-    Inside `csgo/cfg/MatchZy`, a file named `admins.json` should be present. If it is not there, it will be automatically created when the plugin is loaded. You can add Steam64 id of admins in that JSON file like mentioned in the below example:
-
-    ```json
-    {
-        "76561198154367261": "",
-        "<another_steam_id>": ""
-    }
-    ```
+Keep `matchzy_everyone_is_admin false` on production servers. General administration such as `!adminmenu`, `!map`, `!asay`, `!rcon`, bans, kicks, mutes, gags, and admin assignment belongs to SimpleAdmin.
 
 ### Configuring MatchZy Settings (ConVars)
 Again, inside `csgo/cfg/MatchZy`, a file named `config.cfg` should be present. This file is executed whenever the plugin is loaded. If you make any changes in this file and want to reload the config, simply execute `exec MatchZy/config.cfg` command on the server.
@@ -86,9 +55,6 @@ Example: `matchzy_demo_upload_url "https://your-website.com/upload-endpoint"` <b
 
 ####`matchzy_chat_prefix`
 :   Chat prefix to show whenever a MatchZy message is sent to players. Available Colors: {Default}, {Darkred}, {Green}, {LightYellow}, {LightBlue}, {Olive}, {Lime}, {Red}, {Purple}, {Grey}, {Yellow}, {Gold}, {Silver}, {Blue}, {DarkBlue}, {BlueGrey}, {Magenta} and {LightRed}. Make sure to end your prefix with {Default} to avoid coloring the messages in your prefix color.<br>**`Default: [{Green}MatchZy{Default}]`**
-
-####`matchzy_admin_chat_prefix`
-:   Chat prefix to show whenever an admin sends message using `.asay <message>`. Avaiable Colors are mentioned above.<br>**`Default: [{Red}ADMIN{Default}]`**
 
 ####`matchzy_chat_messages_timer_delay`
 :   Number of seconds of delay before sending reminder messages from MatchZy (like unready message, paused message, etc). Note: Changing this timer wont affect the active timer, so if you change this setting in warmup, you will have to restart warmup to make the change effective.<br>**`Default: 13[{Red}ADMIN{Default}]`**

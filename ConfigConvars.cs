@@ -196,26 +196,6 @@ namespace MatchZy
             Log($"[MatchZyChatPrefix] chatPrefix: {chatPrefix}");
         }
 
-        [ConsoleCommand("matchzy_admin_chat_prefix", "Chat prefix for BETHECHAMP admin broadcasts. Default value: [{Green}BETHECHAMP ADMIN{Default}]")]
-        public void MatchZyAdminChatPrefix(CCSPlayerController? player, CommandInfo command)
-        {
-            if (player != null) return;
-
-            string args = command.ArgString.Trim();
-
-            if (string.IsNullOrEmpty(args))
-            {
-                adminChatPrefix = $"[{ChatColors.Green}BETHECHAMP ADMIN{ChatColors.Default}]";
-                return;
-            }
-
-            args = GetColorTreatedString(args);
-
-            adminChatPrefix = args;
-
-            Log($"[MatchZyAdminChatPrefix] adminChatPrefix: {adminChatPrefix}");
-        }
-
         [ConsoleCommand("matchzy_chat_messages_timer_delay", "Delay between BETHECHAMP ready-check and pause reminders. Default: 12")]
         public void MatchZyChatMessagesTimerDelay(CCSPlayerController? player, CommandInfo command)
         {

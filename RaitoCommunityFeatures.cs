@@ -1,7 +1,9 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Entities;
 using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -64,33 +66,23 @@ public partial class MatchZy
             candidate.IsValid && candidate.UserId == targetUserId);
         if (!IsPlayerValid(target) || target!.IsBot || target.IsHLTV) return HookResult.Continue;
 
+        if (AdminManager.CanPlayerTarget(initiator!, target))
+            return HookResult.Continue;
+
         try
         {
-            // This deliberately bypasses the 15-second authorization cache: immunity must use a fresh role lookup.
-            if (raitoDatabase is null)
-            {
-                if (!IsRaitoPrivilegedRole(GetRaitoCachedRole(target.SteamID))) return HookResult.Continue;
-                ReplyToUserCommand(initiator, $"{target.PlayerName} is temporarily protected while authorization is checked.");
-                return HookResult.Stop;
-            }
-            if (!raitoDatabase.TryGetUserRole(target.SteamID, out string role, out _)) return HookResult.Continue;
-            if (!IsRaitoPrivilegedRole(role)) return HookResult.Continue;
-
-            ReplyToUserCommand(initiator, $"{target.PlayerName} has vote-kick immunity.");
-            WriteRaitoAdminLog(initiator, "vote.kick.blocked", new RaitoTarget(target, target.SteamID, target.PlayerName), metadata: new { role });
+            ReplyToUserCommand(initiator, $"{target!.PlayerName} is protected by SimpleAdmin immunity.");
+            WriteRaitoAdminLog(
+                initiator,
+                "vote.kick.blocked",
+                new RaitoTarget(target, target.SteamID, target.PlayerName),
+                metadata: new { authority = "SimpleAdmin" });
             return HookResult.Stop;
         }
         catch (Exception ex)
         {
-            // Once a locally cached role confirms privilege, fail closed during a transient database outage.
-            if (IsRaitoPrivilegedRole(GetRaitoCachedRole(target.SteamID)))
-            {
-                ReplyToUserCommand(initiator, $"{target.PlayerName} is temporarily protected while authorization is checked.");
-                Log($"[BETHECHAMP] Vote-kick check failed closed for {target.SteamID}: {ex.Message}");
-                return HookResult.Stop;
-            }
-            Log($"[BETHECHAMP] Vote-kick check failed for {target.SteamID}: {ex.Message}");
-            return HookResult.Continue;
+            Log($"[BETHECHAMP] SimpleAdmin immunity audit failed for {target!.SteamID}: {ex.Message}");
+            return HookResult.Stop;
         }
     }
 
@@ -111,7 +103,11 @@ public partial class MatchZy
             Log($"[BETHECHAMP] Reserved-slot authorization failed for {steamId64}: {ex.Message}");
             role = "USER";
         }
-        if (IsRaitoPrivilegedRole(role))
+        bool hasSimpleAdminReservation = AdminManager.PlayerHasPermissions(
+            new SteamID(steamId64),
+            "@css/reservation");
+
+        if (hasSimpleAdminReservation || IsRaitoPrivilegedRole(role))
         {
             joining!.ChangeTeam(CsTeam.Spectator);
             ReplyToUserCommand(joining, "You are using the reserved privileged slot as a spectator.");

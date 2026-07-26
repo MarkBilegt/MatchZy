@@ -179,7 +179,7 @@ namespace MatchZy
             PrintToAllChat($"{ChatColors.Green}BOTS{ChatColors.Default} | .bot, .nobots, .crouchbot, .boost, .crouchboost");
             PrintToAllChat($"{ChatColors.Green}LINEUPS{ChatColors.Default} | .loadnade, .savenade, .importnade, .listnades");
             PrintToAllChat($"{ChatColors.Green}REPLAYS{ChatColors.Default} | .rethrow, .throwindex <index>, .lastindex, .delay <number>");
-            PrintToAllChat($"{ChatColors.Green}TOOLS{ChatColors.Default} | .clear, .fastforward, .last, .back, .solid, .impacts, .traj");
+            PrintToAllChat($"{ChatColors.Green}TOOLS{ChatColors.Default} | .clear, .fastforward, .lastnade, .back, .solid, .impacts, .traj");
             // On new line to prevent text cutting off
             PrintToAllChat($"{ChatColors.Green}POSITION{ChatColors.Default} | .savepos, .loadpos");
             PrintToAllChat($"{ChatColors.Green}SESSION{ChatColors.Default} | .ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
@@ -671,7 +671,7 @@ namespace MatchZy
                                     }
 
                                     // Extract description, if available
-                                    string lineupDesc = lineupInfo.ContainsKey("Desc") ? lineupInfo["Desc"] : null;
+                                    string? lineupDesc = lineupInfo.ContainsKey("Desc") ? lineupInfo["Desc"] : null;
 
                                     // Print messages
                                     // ReplyToUserCommand(player, $"Lineup {ChatColors.Green}{nearestName}{ChatColors.Default} loaded successfully!");
@@ -1524,7 +1524,7 @@ namespace MatchZy
             RethrowSpecificNade(player, "decoy");
         }
 
-        [ConsoleCommand("css_last", "Teleports to the last thrown grenade position")]
+        [ConsoleCommand("css_lastnade", "Teleports to the last thrown grenade position")]
         public void OnLastCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (!isPractice || player == null || !player.UserId.HasValue) return;

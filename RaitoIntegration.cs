@@ -80,7 +80,6 @@ public partial class MatchZy
         }
 
         RegisterListener<Listeners.OnClientAuthorized>((playerSlot, steamId) => OnRaitoClientAuthorized(playerSlot, steamId.SteamId64));
-        RegisterEventHandler<EventPlayerConnectFull>(OnRaitoPlayerConnectFull);
         if (!RaitoCosmeticsHandledByWeaponPaints)
         {
             RegisterEventHandler<EventPlayerSpawn>(OnRaitoPlayerSpawn);
@@ -93,8 +92,14 @@ public partial class MatchZy
         InitializeRaitoRanking();
         PushRaitoHeartbeat();
         raitoHeartbeatTimer = AddTimer(raitoConfig.HeartbeatIntervalSeconds, PushRaitoHeartbeat, TimerFlags.REPEAT);
-        PollRaitoGameCommands();
-        raitoCommandTimer = AddTimer(1.0f, PollRaitoGameCommands, TimerFlags.REPEAT);
+        // SimpleAdmin registers commands shortly after plugin load. Delay the
+        // remote moderation bridge so startup commands cannot be acknowledged
+        // before SimpleAdmin is ready to receive them.
+        raitoCommandTimer = AddTimer(4.0f, () =>
+        {
+            PollRaitoGameCommands();
+            raitoCommandTimer = AddTimer(1.0f, PollRaitoGameCommands, TimerFlags.REPEAT);
+        });
     }
 
     public override void Unload(bool hotReload)
@@ -124,47 +129,10 @@ public partial class MatchZy
     {
         if (!IsPlayerValid(player)) return HookResult.Continue;
 
-        if (raitoDatabase is not null)
-        {
-            try
-            {
-                if (raitoDatabase.GetActiveModeration("Mute", player!.SteamID) is not null)
-                {
-                    PrintToPlayerChat(player, "Chat access is suspended for your account.");
-                    return HookResult.Stop;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"[BETHECHAMP] Mute check failed: {ex.Message}");
-                return HookResult.Continue;
-            }
-        }
-
         string rawMessage = NormalizeRaitoSayMessage(command.ArgString);
         if (TryHandleRaitoChatCommand(player, rawMessage))
         {
             return HookResult.Stop;
-        }
-
-        return HookResult.Continue;
-    }
-
-    private HookResult OnRaitoPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
-    {
-        CCSPlayerController? player = @event.Userid;
-        if (!IsPlayerValid(player) || player!.IsBot || player.IsHLTV || raitoDatabase is null) return HookResult.Continue;
-
-        try
-        {
-            if (raitoDatabase.GetActiveModeration("Gag", player!.SteamID) is not null)
-            {
-                player.VoiceFlags = VoiceFlags.Muted;
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"[BETHECHAMP] Gag check failed: {ex.Message}");
         }
 
         return HookResult.Continue;
@@ -800,23 +768,9 @@ public partial class MatchZy
 
     private void OnRaitoClientAuthorized(int playerSlot, ulong steamId64)
     {
-        if (raitoDatabase is null) return;
-
-        try
-        {
-            var ban = raitoDatabase.GetActiveModeration("Ban", steamId64);
-            if (ban is not null)
-            {
-                string reason = SanitizeServerCommandText(string.IsNullOrWhiteSpace(ban.Reason) ? "Banned by BETHECHAMP admin" : ban.Reason);
-                Server.NextFrame(() => Server.ExecuteCommand($"kickid {playerSlot + 1} \"Banned: {reason}\""));
-                return;
-            }
-            AddTimer(1.0f, () => EnforceRaitoReservedSlot(steamId64), TimerFlags.STOP_ON_MAPCHANGE);
-        }
-        catch (Exception ex)
-        {
-            Log($"[BETHECHAMP] Ban check failed for {steamId64}: {ex.Message}");
-        }
+        // SimpleAdmin is the sole authority for bans and communication penalties.
+        // BETHECHAMP keeps only its community reserved-slot behavior here.
+        AddTimer(1.0f, () => EnforceRaitoReservedSlot(steamId64), TimerFlags.STOP_ON_MAPCHANGE);
     }
 
     private void PushRaitoHeartbeat()
@@ -904,20 +858,16 @@ public partial class MatchZy
         {
             CCSPlayerController? player = Utilities.GetPlayers().FirstOrDefault(candidate =>
                 candidate.IsValid && !candidate.IsBot && !candidate.IsHLTV && candidate.SteamID == command.TargetSteamId64);
+            string reason = SanitizeServerCommandText(
+                string.IsNullOrWhiteSpace(command.Reason) ? "BETHECHAMP remote administration" : command.Reason);
 
             switch (command.Type.ToUpperInvariant())
             {
                 case "BAN":
-                    if (player is null)
-                    {
-                        status = "SKIPPED";
-                        detail = "Target was not connected; the global ban remains enforced on authorization.";
-                    }
-                    else
-                    {
-                        KickTarget(player, $"Banned: {command.Reason}");
-                        detail = $"Kicked {player.PlayerName} and retained the global ban.";
-                    }
+                    int banMinutes = GetSimpleAdminDurationMinutes("Ban", command.TargetSteamId64);
+                    Server.ExecuteCommand(
+                        $"css_addban {command.TargetSteamId64} {banMinutes} \"{reason}\"");
+                    detail = "Dispatched persistent ban to SimpleAdmin.";
                     break;
                 case "KICK":
                     if (player is null)
@@ -927,62 +877,50 @@ public partial class MatchZy
                     }
                     else
                     {
-                        KickTarget(player, command.Reason);
-                        detail = $"Kicked {player.PlayerName}.";
+                        Server.ExecuteCommand($"css_kick #{player.UserId} \"{reason}\"");
+                        detail = $"Dispatched kick for {player.PlayerName} to SimpleAdmin.";
                     }
                     break;
                 case "MUTE":
-                    if (player is null)
-                    {
-                        status = "SKIPPED";
-                        detail = "Target was not connected; chat mute enforcement is stored globally.";
-                    }
-                    else
-                    {
-                        PrintToPlayerChat(player, "Your BETHECHAMP chat access has been suspended.");
-                        detail = $"Notified {player.PlayerName}; chat checks now enforce the mute.";
-                    }
+                    // BETHECHAMP "MUTE" means text chat; SimpleAdmin calls that a gag.
+                    int gagMinutes = GetSimpleAdminDurationMinutes("Mute", command.TargetSteamId64);
+                    Server.ExecuteCommand(
+                        $"css_addgag {command.TargetSteamId64} {gagMinutes} \"{reason}\"");
+                    detail = "Dispatched persistent text gag to SimpleAdmin.";
                     break;
                 case "UNMUTE":
-                    if (player is null)
-                    {
-                        status = "SKIPPED";
-                        detail = "Target was not connected; the global mute record is already removed.";
-                    }
-                    else
-                    {
-                        PrintToPlayerChat(player, "Your BETHECHAMP chat access has been restored.");
-                        detail = $"Notified {player.PlayerName}.";
-                    }
+                    Server.ExecuteCommand(
+                        $"css_ungag {command.TargetSteamId64} \"{reason}\"");
+                    detail = "Dispatched text ungag to SimpleAdmin.";
                     break;
                 case "GAG":
-                    if (player is null)
-                    {
-                        status = "SKIPPED";
-                        detail = "Target was not connected; voice gag enforcement is stored globally.";
-                    }
-                    else
-                    {
-                        player.VoiceFlags = VoiceFlags.Muted;
-                        PrintToPlayerChat(player, "Your BETHECHAMP voice access has been suspended.");
-                        detail = $"Applied voice gag to {player.PlayerName}.";
-                    }
+                    // BETHECHAMP "GAG" means voice; SimpleAdmin calls that a mute.
+                    int muteMinutes = GetSimpleAdminDurationMinutes("Gag", command.TargetSteamId64);
+                    Server.ExecuteCommand(
+                        $"css_addmute {command.TargetSteamId64} {muteMinutes} \"{reason}\"");
+                    detail = "Dispatched persistent voice mute to SimpleAdmin.";
                     break;
                 case "UNGAG":
+                    Server.ExecuteCommand(
+                        $"css_unmute {command.TargetSteamId64} \"{reason}\"");
+                    detail = "Dispatched voice unmute to SimpleAdmin.";
+                    break;
+                case "UNBAN":
+                    Server.ExecuteCommand(
+                        $"css_unban {command.TargetSteamId64} \"{reason}\"");
+                    detail = "Dispatched unban to SimpleAdmin.";
+                    break;
+                case "REFRESH_LOADOUT":
                     if (player is null)
                     {
                         status = "SKIPPED";
-                        detail = "Target was not connected; the global gag record is already removed.";
+                        detail = "Target was not connected to this server.";
                     }
                     else
                     {
-                        player.VoiceFlags = VoiceFlags.Normal;
-                        PrintToPlayerChat(player, "Your BETHECHAMP voice access has been restored.");
-                        detail = $"Cleared voice gag for {player.PlayerName}.";
+                        Server.ExecuteCommand($"css_wp_refresh {command.TargetSteamId64}");
+                        detail = $"Dispatched cosmetics refresh for {player.PlayerName}.";
                     }
-                    break;
-                case "UNBAN":
-                    detail = "The global ban record is removed; no live entity action is required.";
                     break;
                 default:
                     status = "FAILED";
@@ -1007,34 +945,22 @@ public partial class MatchZy
         }
     }
 
-    internal bool RaitoCanExecute(CCSPlayerController? player, string command, params string[] permissions)
+    private int GetSimpleAdminDurationMinutes(string moderationTable, ulong steamId64)
     {
-        if (player is null) return true;
-        if (loadedAdmins.ContainsKey(player.SteamID.ToString())) return true;
-        if (raitoDatabase is null) return false;
+        RaitoModerationRecord record = raitoDatabase?.GetActiveModeration(moderationTable, steamId64)
+            ?? throw new InvalidOperationException(
+                $"No active {moderationTable} record exists for {steamId64}.");
 
-        string role = GetRaitoRole(player.SteamID);
-        if (role == "OWNER") return true;
+        if (record.ExpiresAtUtc is null)
+            return 0;
 
-        string normalizedCommand = command.ToLowerInvariant();
-        if (normalizedCommand is "css_ban" or "css_unban") return role is "MANAGER" or "HEAD_ADMIN" or "VIP" or "ADMIN";
-        if (normalizedCommand is "css_mute" or "css_unmute" or "css_gag" or "css_ungag") return role is "MANAGER" or "HEAD_ADMIN" or "VIP" or "ADMIN";
-        if (normalizedCommand is "css_kick" or "css_team") return role is "HEAD_ADMIN" or "VIP" or "ADMIN";
-        if (normalizedCommand is "css_start" or "css_force" or "css_forcestart" or "css_restart" or "css_rr" or "css_endmatch" or "css_forceend") return role is "HEAD_ADMIN" or "VIP" or "ADMIN";
-        if (permissions.Contains("@css/root", StringComparer.OrdinalIgnoreCase)) return false;
-        if (permissions.Contains("@css/config", StringComparer.OrdinalIgnoreCase)) return role is "MANAGER" or "HEAD_ADMIN";
-        if (permissions.Contains("@css/map", StringComparer.OrdinalIgnoreCase) || permissions.Contains("@custom/prac", StringComparer.OrdinalIgnoreCase)) return role is "MANAGER" or "HEAD_ADMIN" or "VIP" or "ADMIN";
-        if (permissions.Contains("@css/chat", StringComparer.OrdinalIgnoreCase)) return role is "MANAGER" or "HEAD_ADMIN" or "VIP" or "ADMIN";
-        return role is "MANAGER" or "HEAD_ADMIN" or "VIP" or "ADMIN";
+        return Math.Max(
+            1,
+            (int)Math.Ceiling((record.ExpiresAtUtc.Value - DateTime.UtcNow).TotalMinutes));
     }
 
     internal string GetRaitoRole(ulong steamId64)
     {
-        if (loadedAdmins.ContainsKey(steamId64.ToString()))
-        {
-            return "OWNER";
-        }
-
         RefreshRaitoRoleCacheInvalidation();
         if (raitoRoleCache.TryGetValue(steamId64, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
         {
@@ -1052,7 +978,6 @@ public partial class MatchZy
 
     internal string GetRaitoRoleFresh(ulong steamId64)
     {
-        if (loadedAdmins.ContainsKey(steamId64.ToString())) return "OWNER";
         if (raitoDatabase is null || !raitoDatabase.TryGetUserRole(steamId64, out string role, out _)) return "USER";
         raitoRoleCache[steamId64] = (role, DateTime.UtcNow.AddSeconds(15));
         return role;
@@ -1068,7 +993,7 @@ public partial class MatchZy
     }
 
     internal string GetRaitoCachedRole(ulong steamId64)
-        => loadedAdmins.ContainsKey(steamId64.ToString()) ? "OWNER" : raitoRoleCache.TryGetValue(steamId64, out var cached) ? cached.Role : "USER";
+        => raitoRoleCache.TryGetValue(steamId64, out var cached) ? cached.Role : "USER";
 
     private static string NormalizeRaitoSayMessage(string rawMessage)
     {
@@ -1094,5 +1019,11 @@ public partial class MatchZy
         }
     }
 
-    private static string SanitizeServerCommandText(string value) => value.Replace("\"", "'").Replace("\r", " ").Replace("\n", " ").Trim();
+    private static string SanitizeServerCommandText(string value) =>
+        value
+            .Replace("\"", "'")
+            .Replace(";", ",")
+            .Replace("\r", " ")
+            .Replace("\n", " ")
+            .Trim();
 }

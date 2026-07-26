@@ -507,7 +507,7 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_map", "Changes the map using changelevel")]
+        [ConsoleCommand("css_matchmap", "Changes the map through MatchZy")]
         public void OnChangeMapCommand(CCSPlayerController? player, CommandInfo command)
         {
             var mapName = command.ArgByIndex(1);
@@ -572,42 +572,6 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_asay", "Say as an admin")]
-        public void OnAdminSay(CCSPlayerController? player, CommandInfo? command)
-        {
-            if (command == null) return;
-            if (player == null)
-            {
-                Server.PrintToChatAll($"{adminChatPrefix} {command.ArgString}");
-                return;
-            }
-            if (!IsPlayerAdmin(player, "css_asay", "@css/chat"))
-            {
-                SendPlayerNotAdminMessage(player);
-                return;
-            }
-            string message = "";
-            for (int i = 1; i < command.ArgCount; i++)
-            {
-                message += command.ArgByIndex(i) + " ";
-            }
-            Server.PrintToChatAll($"{adminChatPrefix} {message}");
-        }
-
-        [ConsoleCommand("reload_admins", "Reload BETHECHAMP match admins")]
-        public void OnReloadAdmins(CCSPlayerController? player, CommandInfo? command)
-        {
-            if (IsPlayerAdmin(player, "reload_admins", "@css/config"))
-            {
-                LoadAdmins();
-                UpdatePlayersMap();
-            }
-            else
-            {
-                SendPlayerNotAdminMessage(player);
-            }
-        }
-
         [ConsoleCommand("css_match", "Starts match mode")]
         public void OnMatchCommand(CCSPlayerController? player, CommandInfo? command)
         {
@@ -644,20 +608,6 @@ namespace MatchZy
             }
 
             StartMatchMode();
-        }
-
-        [ConsoleCommand("css_rcon", "Triggers provided command on the server")]
-        public void OnRconCommand(CCSPlayerController? player, CommandInfo command)
-        {
-            if (!IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
-            {
-                SendPlayerNotAdminMessage(player);
-                return;
-            }
-            Server.ExecuteCommand(command.ArgString);
-            // ReplyToUserCommand(player, "Command sent successfully!");
-            ReplyToUserCommand(player, Localizer["matchzy.cc.rcon"]);
-
         }
 
         [ConsoleCommand("css_help", "Triggers provided command on the server")]

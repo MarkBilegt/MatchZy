@@ -489,7 +489,7 @@ namespace MatchZy
         }
 
         public void HandleTeamNameChangeCommand(CCSPlayerController? player, string teamName, int teamNum) {
-            if (!IsPlayerAdmin(player, "css_team", "@css/config")) {
+            if (!IsPlayerAdmin(player, $"css_team{teamNum}", "@css/config")) {
                 SendPlayerNotAdminMessage(player);
                 return;
             }

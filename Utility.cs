@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -51,89 +50,20 @@ namespace MatchZy
             }
         }
 
-        private void LoadAdmins()
-        {
-            string fileName = "MatchZy/admins.json";
-            string filePath = Path.Join(Server.GameDirectory + "/csgo/cfg", fileName);
-
-            if (File.Exists(filePath))
-            {
-                try
-                {
-                    using (StreamReader fileReader = File.OpenText(filePath))
-                    {
-                        string jsonContent = fileReader.ReadToEnd();
-                        if (!string.IsNullOrEmpty(jsonContent))
-                        {
-                            JsonSerializerOptions options = new()
-                            {
-                                AllowTrailingCommas = true,
-                            };
-                            loadedAdmins = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? new Dictionary<string, string>();
-                        }
-                        else
-                        {
-                            // Handle the case where the JSON content is empty or null
-                            loadedAdmins = new Dictionary<string, string>();
-                        }
-                    }
-                    foreach (var kvp in loadedAdmins)
-                    {
-                        Log($"[ADMIN] Username: {kvp.Key}, Role: {kvp.Value}");
-                    }
-                }
-                catch (Exception e)
-                {
-                    Log($"[LoadAdmins FATAL] An error occurred: {e.Message}");
-                }
-            }
-            else
-            {
-                Log("[LoadAdmins] The JSON file does not exist. Creating one with default content");
-                Dictionary<string, string> defaultAdmins = new()
-                {
-                    { "steamid", "" }
-                };
-
-                try
-                {
-                    JsonSerializerOptions options = new()
-                    {
-                        WriteIndented = true,
-                    };
-                    string defaultJson = JsonSerializer.Serialize(defaultAdmins, options);
-                    string? directoryPath = Path.GetDirectoryName(filePath);
-                    if (directoryPath != null)
-                    {
-                        if (!Directory.Exists(directoryPath))
-                        {
-                            Directory.CreateDirectory(directoryPath);
-                        }
-                    }
-                    File.WriteAllText(filePath, defaultJson);
-
-                    Log("[LoadAdmins] Created a new JSON file with default content.");
-                }
-                catch (Exception e)
-                {
-                    Log($"[LoadAdmins FATAL] Error creating the JSON file: {e.Message}");
-                }
-            }
-        }
-
         private bool IsPlayerAdmin(CCSPlayerController? player, string command = "", params string[] permissions)
         {
-            if (everyoneIsAdmin.Value) return true; // Everyone is treated as admin if matchzy_everyone_is_admin is true.
+            if (player == null) return true; // Server console.
+            if (everyoneIsAdmin.Value) return true;
+
             string[] updatedPermissions = permissions.Concat(new[] { "@css/root" }).ToArray();
             RequiresPermissionsOr attr = new(updatedPermissions)
             {
                 Command = command
             };
-            if (attr.CanExecuteCommand(player)) return true; // Admin exists in admins.json of CSSharp
-            if (player == null) return true; // Sent via server, hence should be treated as an admin.
-            if (loadedAdmins.ContainsKey(player.SteamID.ToString())) return true; // Admin exists in admins.json of MatchZy
-            if (RaitoCanExecute(player, command, permissions)) return true;
-            return false;
+
+            // SimpleAdmin populates CounterStrikeSharp's AdminManager. MatchZy no
+            // longer grants match authority from its own files or website roles.
+            return attr.CanExecuteCommand(player);
         }
 
         private int GetRealPlayersCount()
@@ -531,7 +461,7 @@ namespace MatchZy
 
                     // A player controller still exists after a player disconnects
                     // Hence checking whether the player is actually in the server or not
-                    if (player.Connected != PlayerConnectedState.PlayerConnected) continue;
+                    if (player.Connected != PlayerConnectedState.Connected) continue;
 
                     if (player.UserId.HasValue)
                     {
@@ -624,7 +554,7 @@ namespace MatchZy
 
         private void HandleMapChangeCommand(CCSPlayerController? player, string mapName)
         {
-            if (!IsPlayerAdmin(player, "css_map", "@css/map"))
+            if (!IsPlayerAdmin(player, "css_matchmap", "@css/map"))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
@@ -813,39 +743,7 @@ namespace MatchZy
         public void HandleClanTags()
         {
             // Currently it is not possible to keep updating player tags while in warmup without restarting the match
-            // Hence returning from here until we find a proper solution
-            return;
-
-            if (readyAvailable && !matchStarted)
-            {
-                foreach (var key in playerData.Keys)
-                {
-                    if (playerReadyStatus[key])
-                    {
-                        playerData[key].Clan = "[Ready]";
-                    }
-                    else
-                    {
-                        playerData[key].Clan = "[Unready]";
-                    }
-                    Server.PrintToChatAll($"{chatPrefix} Clan sync | {playerData[key].PlayerName}: {playerData[key].Clan}");
-                }
-            }
-            else if (matchStarted)
-            {
-                foreach (var key in playerData.Keys)
-                {
-                    if (playerData[key].TeamNum == 2)
-                    {
-                        playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
-                    }
-                    else if (playerData[key].TeamNum == 3)
-                    {
-                        playerData[key].Clan = reverseTeamSides["CT"].teamTag;
-                    }
-                    Server.PrintToChatAll($"{chatPrefix} Clan sync | {playerData[key].PlayerName}: {playerData[key].Clan}");
-                }
-            }
+            // Keep this as a no-op until clan tags can be updated without restarting the match.
         }
 
         private void HandleMatchEnd()
@@ -1396,7 +1294,7 @@ namespace MatchZy
                 player.PrintToChat($"{chatPrefix} {ChatColors.Green}BOTS{ChatColors.Default} | .bot, .nobots, .crouchbot, .boost, .crouchboost");
                 player.PrintToChat($"{chatPrefix} {ChatColors.Green}LINEUPS{ChatColors.Default} | .loadnade, .savenade, .importnade, .listnades");
                 player.PrintToChat($"{chatPrefix} {ChatColors.Green}REPLAYS{ChatColors.Default} | .rethrow, .throwindex <index>, .lastindex, .delay <number>");
-                player.PrintToChat($"{chatPrefix} {ChatColors.Green}TOOLS{ChatColors.Default} | .clear, .fastforward, .last, .back, .solid, .impacts, .traj");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}TOOLS{ChatColors.Default} | .clear, .fastforward, .lastnade, .back, .solid, .impacts, .traj");
                 player.PrintToChat($"{chatPrefix} {ChatColors.Green}POSITION{ChatColors.Default} | .savepos, .loadpos");
                 player.PrintToChat($"{chatPrefix} {ChatColors.Green}SESSION{ChatColors.Default} | .ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
                 return;
@@ -1889,10 +1787,7 @@ namespace MatchZy
                     return;
                 }
 
-                using FileStream fileStream = File.OpenRead(filePath);
-
-                byte[] fileContent = new byte[fileStream.Length];
-                await fileStream.ReadAsync(fileContent, 0, (int)fileStream.Length);
+                byte[] fileContent = await File.ReadAllBytesAsync(filePath);
 
                 using ByteArrayContent content = new(fileContent);
                 content.Headers.Add("Content-Type", "application/octet-stream");

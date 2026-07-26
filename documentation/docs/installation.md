@@ -1,5 +1,7 @@
 # Installation
 
+This BETHECHAMP build requires CounterStrikeSharp 1.0.371 or newer, its .NET 10 runtime, and CS2-SimpleAdmin 1.8.3-bethechamp.1. Load SimpleAdmin before opening the server to players because it is the authoritative source for MatchZy admin permissions and remote moderation.
+
 * Install [Metamod](https://cs2.poggu.me/metamod/installation/)
 * Install [CounterStrikeSharp (CSSharp)](https://docs.cssharp.dev/guides/getting-started/). (**Note**: This step can be skipped if you install [MatchZy with CSSharp release](https://github.com/shobhit-pathak/MatchZy/releases/))
 	* Go to this link: https://github.com/roflmuffin/CounterStrikeSharp/releases

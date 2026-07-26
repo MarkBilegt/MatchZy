@@ -34,7 +34,7 @@ public partial class MatchZy
     {
         if (!CanControlRaitoTestMatch(player))
         {
-            ReplyToUserCommand(player, "Only the BETHECHAMP owner or server console can control test matches.");
+            ReplyToUserCommand(player, "Only a SimpleAdmin root administrator or server console can control test matches.");
             return;
         }
 
@@ -67,7 +67,7 @@ public partial class MatchZy
     }
 
     private bool CanControlRaitoTestMatch(CCSPlayerController? player) =>
-        player is null || GetRaitoRole(player.SteamID) == "OWNER";
+        IsPlayerAdmin(player, "css_testmatch", "@css/root");
 
     private void StartRaitoTestMatch(CCSPlayerController? actor, bool fullLength)
     {
@@ -84,7 +84,7 @@ public partial class MatchZy
         }
 
         List<CCSPlayerController> humans = Utilities.GetPlayers()
-            .Where(player => player.IsValid && !player.IsBot && !player.IsHLTV && player.Connected == PlayerConnectedState.PlayerConnected)
+            .Where(player => player.IsValid && !player.IsBot && !player.IsHLTV && player.Connected == PlayerConnectedState.Connected)
             .ToList();
         if (humans.Count > RaitoTestTeamSize * 2)
         {

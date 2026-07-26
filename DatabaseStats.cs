@@ -18,7 +18,7 @@ namespace MatchZy
 {
     public class Database
     {
-        private IDbConnection connection;
+        private IDbConnection connection = null!;
         private readonly SemaphoreSlim databaseLock = new(1, 1);
 
         DatabaseConfig? config;
