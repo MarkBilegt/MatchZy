@@ -4,6 +4,8 @@
   "ServerIpAddress": "127.0.0.1",
   "ServerPort": 27015,
   "Region": "Local",
+  "ServerPurpose": "PUBLIC",
+  "DatabaseConfigPath": "csgo/cfg/MatchZy/database.json",
   "MaxPlayers": 11,
   "PublicSlots": 11,
   "ReservedSlots": 1,

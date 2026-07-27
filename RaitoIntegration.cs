@@ -3,6 +3,7 @@ using System.Text.Json;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Timers;
@@ -16,6 +17,10 @@ public partial class MatchZy
     private const int RaitoInventoryServicesInventoryOffset = 112;
     private const int RaitoGloveLoadoutSlot = 41;
     private sealed record RaitoWeaponRefreshState(CBasePlayerWeapon Weapon, string DesignerName, int Clip1, int ReserveAmmo, bool RestoreAmmo);
+    private sealed record RaitoHeartbeatResult(
+        string? JoinPassword,
+        IReadOnlyList<RaitoAdminCallUpdate> AdminCallUpdates,
+        RaitoClanWarAssignment? ClanWarAssignment);
 
     private readonly Dictionary<ulong, (string Role, DateTime ExpiresAt)> raitoRoleCache = new();
     private DateTime raitoRoleCacheInvalidatedAt = DateTime.MinValue;
@@ -29,7 +34,11 @@ public partial class MatchZy
     private RaitoServerConfig raitoConfig = new();
     private CounterStrikeSharp.API.Modules.Timers.Timer? raitoHeartbeatTimer;
     private CounterStrikeSharp.API.Modules.Timers.Timer? raitoCommandTimer;
+    private int raitoHeartbeatGeneration;
+    private int raitoHeartbeatInProgress;
     private int raitoCommandPollInProgress;
+    private string? raitoActiveClanWarId;
+    private bool raitoPasswordConVarWarningLogged;
     private bool raitoSkinAttributesAllowed;
     private bool raitoSkinGuidelineWarningLogged;
     private MemoryFunctionVoid<nint, string, object>? raitoSetAttribute;
@@ -45,6 +54,9 @@ public partial class MatchZy
 
     private void InitializeRaitoIntegration()
     {
+        Interlocked.Increment(ref raitoHeartbeatGeneration);
+        Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
+        raitoActiveClanWarId = null;
         raitoConfig = RaitoServerConfig.Load();
         if (!RaitoCosmeticsHandledByWeaponPaints)
         {
@@ -59,7 +71,7 @@ public partial class MatchZy
             }
             InitializeRaitoGloveLoadoutHook();
         }
-        string databaseConfigPath = Path.Combine(Server.GameDirectory, "csgo", "cfg", "MatchZy", "database.json");
+        string databaseConfigPath = raitoConfig.ResolveDatabaseConfigPath();
 
         try
         {
@@ -90,7 +102,9 @@ public partial class MatchZy
         AddCommandListener("say_team", OnRaitoPlayerSay);
         InitializeRaitoCommunityFeatures();
         InitializeRaitoRanking();
-        PushRaitoHeartbeat();
+        // GlobalVars is not available while CounterStrikeSharp is still doing
+        // a cold-start plugin load. Run the first heartbeat on a game frame.
+        AddTimer(1.0f, PushRaitoHeartbeat, TimerFlags.STOP_ON_MAPCHANGE);
         raitoHeartbeatTimer = AddTimer(raitoConfig.HeartbeatIntervalSeconds, PushRaitoHeartbeat, TimerFlags.REPEAT);
         // SimpleAdmin registers commands shortly after plugin load. Delay the
         // remote moderation bridge so startup commands cannot be acknowledged
@@ -104,6 +118,9 @@ public partial class MatchZy
 
     public override void Unload(bool hotReload)
     {
+        Interlocked.Increment(ref raitoHeartbeatGeneration);
+        Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
+        raitoActiveClanWarId = null;
         ResetRaitoTestMatchState();
         DisposeRaitoRanking();
         if (!RaitoCosmeticsHandledByWeaponPaints)
@@ -775,26 +792,202 @@ public partial class MatchZy
 
     private void PushRaitoHeartbeat()
     {
-        if (raitoDatabase is null) return;
+        RaitoDatabase? database = raitoDatabase;
+        if (database is null || Interlocked.CompareExchange(ref raitoHeartbeatInProgress, 1, 0) != 0) return;
 
+        int generation = Volatile.Read(ref raitoHeartbeatGeneration);
+        RaitoServerConfig config = raitoConfig;
+        int currentPlayers;
+        string currentMap;
+        string state;
         try
         {
-            int currentPlayers = Math.Min(raitoConfig.PublicSlots, Utilities.GetPlayers().Count(player => player.IsValid && !player.IsBot && !player.IsHLTV && player.TeamNum != (byte)CsTeam.Spectator));
-            raitoDatabase.ExpireAdminCallsForMapChange(raitoConfig.ServerId, Server.MapName);
-            NotifyRaitoAdminCallUpdates();
-            string state = isRaitoTestMatch ? "test" : isPractice ? "practice" : isMatchLive ? "live" : isKnifeRound ? "knife" : isWarmup ? "warmup" : "waiting";
-            raitoDatabase.UpdateServer(raitoConfig, currentPlayers, state, Server.MapName);
+            currentPlayers = Math.Min(
+                config.PublicSlots,
+                Utilities.GetPlayers().Count(player =>
+                    player.IsValid &&
+                    !player.IsBot &&
+                    !player.IsHLTV &&
+                    player.TeamNum != (byte)CsTeam.Spectator));
+            currentMap = Server.MapName;
+            state = isRaitoTestMatch ? "test" : isPractice ? "practice" : isMatchLive ? "live" : isKnifeRound ? "knife" : isWarmup ? "warmup" : "waiting";
+        }
+        catch (NativeException)
+        {
+            Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
+            return;
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Heartbeat failed: {ex.Message}");
+            Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
+            Log($"[BETHECHAMP] Could not capture heartbeat state: {ex.Message}");
+            return;
         }
+
+        _ = Task.Run(() =>
+        {
+            database.ExpireAdminCallsForMapChange(config.ServerId, currentMap);
+            IReadOnlyList<RaitoAdminCallUpdate> adminCallUpdates =
+                database.GetRecentAdminCallUpdates(config.ServerId);
+            string? joinPassword = database.UpdateServer(
+                config,
+                currentPlayers,
+                state,
+                currentMap);
+            RaitoClanWarAssignment? clanWarAssignment =
+                string.Equals(config.ServerPurpose, "CLAN_WAR", StringComparison.Ordinal)
+                    ? database.GetClanWarAssignment(config.ServerId)
+                    : null;
+            return new RaitoHeartbeatResult(joinPassword, adminCallUpdates, clanWarAssignment);
+        }).ContinueWith(task =>
+        {
+            Exception? error = task.Exception?.GetBaseException();
+            if (generation != Volatile.Read(ref raitoHeartbeatGeneration) ||
+                !ReferenceEquals(raitoDatabase, database))
+            {
+                Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
+                return;
+            }
+
+            try
+            {
+                Server.NextFrame(() =>
+                {
+                    try
+                    {
+                        if (generation != Volatile.Read(ref raitoHeartbeatGeneration) ||
+                            !ReferenceEquals(raitoDatabase, database))
+                        {
+                            return;
+                        }
+
+                        if (error is not null)
+                        {
+                            Log($"[BETHECHAMP] Heartbeat failed: {error.Message}");
+                            return;
+                        }
+
+                        RaitoHeartbeatResult result = task.Result;
+                        NotifyRaitoAdminCallUpdates(result.AdminCallUpdates);
+                        ApplyRaitoJoinPassword(result.JoinPassword);
+                        ApplyRaitoClanWarAssignment(result.ClanWarAssignment);
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
+                    }
+                });
+            }
+            catch
+            {
+                Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
+            }
+        }, TaskScheduler.Default);
     }
 
-    private void NotifyRaitoAdminCallUpdates()
+    private void ApplyRaitoJoinPassword(string? joinPassword)
     {
-        if (raitoDatabase is null) return;
-        foreach (RaitoAdminCallUpdate update in raitoDatabase.GetRecentAdminCallUpdates(raitoConfig.ServerId))
+        ConVar? passwordConVar = ConVar.Find("sv_password");
+        if (passwordConVar is null)
+        {
+            if (!raitoPasswordConVarWarningLogged)
+            {
+                Log("[BETHECHAMP] sv_password is unavailable; website password changes cannot be applied.");
+                raitoPasswordConVarWarningLogged = true;
+            }
+            return;
+        }
+
+        raitoPasswordConVarWarningLogged = false;
+        string requestedPassword = joinPassword ?? string.Empty;
+        if (string.Equals(passwordConVar.StringValue, requestedPassword, StringComparison.Ordinal))
+            return;
+
+        passwordConVar.SetValue(requestedPassword);
+        Log(string.IsNullOrEmpty(requestedPassword)
+            ? "[BETHECHAMP] Server join password cleared from website control."
+            : "[BETHECHAMP] Server join password updated from website control.");
+    }
+
+    private void ApplyRaitoClanWarAssignment(RaitoClanWarAssignment? assignment)
+    {
+        if (!string.Equals(raitoConfig.ServerPurpose, "CLAN_WAR", StringComparison.Ordinal))
+            return;
+
+        if (assignment is null)
+        {
+            if (raitoActiveClanWarId is not null && !isMatchLive)
+            {
+                if (isMatchSetup) ResetMatch();
+                raitoActiveClanWarId = null;
+                Log("[BETHECHAMP CLAN WAR] Assignment released; server returned to standby.");
+            }
+            return;
+        }
+        if (string.Equals(raitoActiveClanWarId, assignment.WarId, StringComparison.Ordinal))
+            return;
+        if (isMatchSetup || isMatchLive)
+        {
+            Log($"[BETHECHAMP CLAN WAR] War #{assignment.WarNumber} is queued, but another match is still active.");
+            return;
+        }
+
+        var team1Players = assignment.ChallengerPlayers.ToDictionary(
+            player => player.SteamId64.ToString(),
+            player => player.DisplayName);
+        var team2Players = assignment.OpponentPlayers.ToDictionary(
+            player => player.SteamId64.ToString(),
+            player => player.DisplayName);
+        string json = JsonSerializer.Serialize(new
+        {
+            matchid = 900_000_000 + assignment.WarNumber,
+            num_maps = 1,
+            maplist = new[] { assignment.MapName },
+            skip_veto = true,
+            clinch_series = true,
+            players_per_team = 5,
+            min_players_to_ready = 5,
+            min_spectators_to_ready = 0,
+            match_side_type = "standard",
+            map_sides = new[] { "knife" },
+            team1 = new
+            {
+                id = assignment.ChallengerClanId,
+                name = $"[{assignment.ChallengerTag}] {assignment.ChallengerName}",
+                players = team1Players
+            },
+            team2 = new
+            {
+                id = assignment.OpponentClanId,
+                name = $"[{assignment.OpponentTag}] {assignment.OpponentName}",
+                players = team2Players
+            },
+            spectators = new { players = new Dictionary<string, string>() },
+            cvars = new Dictionary<string, string>
+            {
+                ["mp_maxrounds"] = "24",
+                ["mp_overtime_enable"] = "1",
+                ["mp_overtime_maxrounds"] = "6",
+                ["mp_overtime_startmoney"] = "10000",
+                ["mp_match_can_clinch"] = "1",
+                ["mp_team_timeout_max"] = "4",
+                ["mp_team_timeout_time"] = "30"
+            }
+        });
+
+        if (!LoadMatchFromJSON(json))
+        {
+            Log($"[BETHECHAMP CLAN WAR] Failed to load War #{assignment.WarNumber}.");
+            return;
+        }
+
+        raitoActiveClanWarId = assignment.WarId;
+        Log($"[BETHECHAMP CLAN WAR] Loaded War #{assignment.WarNumber} on {assignment.MapName}.");
+    }
+
+    private void NotifyRaitoAdminCallUpdates(IReadOnlyList<RaitoAdminCallUpdate> updates)
+    {
+        foreach (RaitoAdminCallUpdate update in updates)
         {
             if (!raitoAdminCallStatuses.TryGetValue(update.Id, out string? previous))
             {

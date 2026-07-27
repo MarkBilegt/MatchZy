@@ -93,6 +93,19 @@ public sealed record RaitoGameCommand(
 
 public sealed record RaitoMapPoolItem(string MapName, string DisplayName);
 public sealed record RaitoAdminCallUpdate(string Id, ulong CallerSteamId64, string Status);
+public sealed record RaitoClanWarPlayer(ulong SteamId64, string DisplayName);
+public sealed record RaitoClanWarAssignment(
+    string WarId,
+    int WarNumber,
+    string ChallengerClanId,
+    string ChallengerName,
+    string ChallengerTag,
+    string OpponentClanId,
+    string OpponentName,
+    string OpponentTag,
+    string MapName,
+    IReadOnlyList<RaitoClanWarPlayer> ChallengerPlayers,
+    IReadOnlyList<RaitoClanWarPlayer> OpponentPlayers);
 
 public sealed class RaitoDatabase : IDisposable
 {
@@ -893,7 +906,383 @@ public sealed class RaitoDatabase : IDisposable
         command.ExecuteNonQuery();
     }
 
-    public void UpdateServer(
+    public RaitoClanWarAssignment? GetClanWarAssignment(string serverId)
+    {
+        using var connection = OpenConnection();
+        string warId;
+        int warNumber;
+        string challengerClanId;
+        string challengerName;
+        string challengerTag;
+        string opponentClanId;
+        string opponentName;
+        string opponentTag;
+        string mapName;
+
+        using (var command = new MySqlCommand("""
+            SELECT
+                war.`id`,
+                war.`number`,
+                war.`challengerClanId`,
+                challenger.`name`,
+                challenger.`tag`,
+                war.`opponentClanId`,
+                opponent.`name`,
+                opponent.`tag`,
+                war.`selectedMap`
+            FROM `ClanWar` war
+            INNER JOIN `ClanWarServerLease` lease ON lease.`clanWarId` = war.`id`
+            INNER JOIN `Clan` challenger ON challenger.`id` = war.`challengerClanId`
+            INNER JOIN `Clan` opponent ON opponent.`id` = war.`opponentClanId`
+            WHERE lease.`serverId` = @serverId
+              AND lease.`expiresAt` > UTC_TIMESTAMP(3)
+              AND war.`status` IN ('SERVER_RESERVED', 'LIVE')
+              AND war.`selectedMap` IS NOT NULL
+            ORDER BY lease.`leasedAt` ASC
+            LIMIT 1
+            """, connection))
+        {
+            command.Parameters.AddWithValue("@serverId", serverId);
+            using var reader = command.ExecuteReader();
+            if (!reader.Read()) return null;
+            warId = reader.GetString(0);
+            warNumber = reader.GetInt32(1);
+            challengerClanId = reader.GetString(2);
+            challengerName = reader.GetString(3);
+            challengerTag = reader.GetString(4);
+            opponentClanId = reader.GetString(5);
+            opponentName = reader.GetString(6);
+            opponentTag = reader.GetString(7);
+            mapName = reader.GetString(8);
+        }
+
+        var challengerPlayers = new List<RaitoClanWarPlayer>(5);
+        var opponentPlayers = new List<RaitoClanWarPlayer>(5);
+        using (var rosterCommand = new MySqlCommand("""
+            SELECT `clanId`, `steamId64`, `displayName`
+            FROM `ClanWarRosterPlayer`
+            WHERE `clanWarId` = @warId
+            ORDER BY `clanId`, `lineupPosition`
+            """, connection))
+        {
+            rosterCommand.Parameters.AddWithValue("@warId", warId);
+            using var reader = rosterCommand.ExecuteReader();
+            while (reader.Read())
+            {
+                if (!ulong.TryParse(reader.GetString(1), out ulong steamId64)) continue;
+                var player = new RaitoClanWarPlayer(steamId64, reader.GetString(2));
+                if (string.Equals(reader.GetString(0), challengerClanId, StringComparison.Ordinal))
+                    challengerPlayers.Add(player);
+                else if (string.Equals(reader.GetString(0), opponentClanId, StringComparison.Ordinal))
+                    opponentPlayers.Add(player);
+            }
+        }
+
+        if (challengerPlayers.Count != 5 || opponentPlayers.Count != 5)
+            return null;
+        return new RaitoClanWarAssignment(
+            warId,
+            warNumber,
+            challengerClanId,
+            challengerName,
+            challengerTag,
+            opponentClanId,
+            opponentName,
+            opponentTag,
+            mapName,
+            challengerPlayers,
+            opponentPlayers);
+    }
+
+    public void MarkClanWarLive(string warId)
+    {
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        using var update = new MySqlCommand("""
+            UPDATE `ClanWar`
+            SET `status` = 'LIVE',
+                `startedAt` = COALESCE(`startedAt`, UTC_TIMESTAMP(3)),
+                `updatedAt` = UTC_TIMESTAMP(3)
+            WHERE `id` = @warId AND `status` = 'SERVER_RESERVED'
+            """, connection, transaction);
+        update.Parameters.AddWithValue("@warId", warId);
+        int changed = update.ExecuteNonQuery();
+        if (changed == 1)
+        {
+            using var extendLease = new MySqlCommand("""
+                UPDATE `ClanWarServerLease`
+                SET `expiresAt` = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 4 HOUR)
+                WHERE `clanWarId` = @warId
+                """, connection, transaction);
+            extendLease.Parameters.AddWithValue("@warId", warId);
+            extendLease.ExecuteNonQuery();
+            InsertClanWarMessage(
+                connection,
+                transaction,
+                warId,
+                "SYSTEM",
+                "The dedicated server reports that the Clan War is live.");
+        }
+        transaction.Commit();
+    }
+
+    public void FinalizeClanWar(
+        string warId,
+        int challengerScore,
+        int opponentScore,
+        bool aborted = false)
+    {
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+
+        string status;
+        string challengerClanId;
+        string opponentClanId;
+        string challengerTag;
+        string opponentTag;
+        int challengerRating;
+        int opponentRating;
+        string? serverId;
+        using (var select = new MySqlCommand("""
+            SELECT
+                war.`status`,
+                war.`challengerClanId`,
+                war.`opponentClanId`,
+                challenger.`tag`,
+                opponent.`tag`,
+                challenger.`rating`,
+                opponent.`rating`,
+                war.`serverId`
+            FROM `ClanWar` war
+            INNER JOIN `Clan` challenger ON challenger.`id` = war.`challengerClanId`
+            INNER JOIN `Clan` opponent ON opponent.`id` = war.`opponentClanId`
+            WHERE war.`id` = @warId
+            FOR UPDATE
+            """, connection, transaction))
+        {
+            select.Parameters.AddWithValue("@warId", warId);
+            using var reader = select.ExecuteReader();
+            if (!reader.Read())
+            {
+                transaction.Rollback();
+                return;
+            }
+            status = reader.GetString(0);
+            challengerClanId = reader.GetString(1);
+            opponentClanId = reader.GetString(2);
+            challengerTag = reader.GetString(3);
+            opponentTag = reader.GetString(4);
+            challengerRating = reader.GetInt32(5);
+            opponentRating = reader.GetInt32(6);
+            serverId = reader.IsDBNull(7) ? null : reader.GetString(7);
+        }
+
+        if (status is "COMPLETED" or "DISPUTED" or "VOID" or "CANCELLED")
+        {
+            transaction.Rollback();
+            return;
+        }
+        if (aborted || challengerScore == opponentScore)
+        {
+            using var dispute = new MySqlCommand("""
+                UPDATE `ClanWar`
+                SET `status` = 'DISPUTED',
+                    `challengerScore` = @challengerScore,
+                    `opponentScore` = @opponentScore,
+                    `disputedAt` = UTC_TIMESTAMP(3),
+                    `serverId` = NULL,
+                    `updatedAt` = UTC_TIMESTAMP(3)
+                WHERE `id` = @warId
+                """, connection, transaction);
+            dispute.Parameters.AddWithValue("@warId", warId);
+            dispute.Parameters.AddWithValue("@challengerScore", challengerScore);
+            dispute.Parameters.AddWithValue("@opponentScore", opponentScore);
+            dispute.ExecuteNonQuery();
+            ReleaseClanWarServer(connection, transaction, warId, serverId);
+            InsertClanWarMessage(
+                connection,
+                transaction,
+                warId,
+                "SYSTEM",
+                aborted
+                    ? "The match was aborted and requires staff review."
+                    : "The match ended without a BO1 winner and requires staff review.");
+            transaction.Commit();
+            return;
+        }
+
+        using (var duplicate = new MySqlCommand("""
+            SELECT COUNT(*)
+            FROM `ClanRatingEvent`
+            WHERE `clanWarId` = @warId AND `reversedAt` IS NULL
+            """, connection, transaction))
+        {
+            duplicate.Parameters.AddWithValue("@warId", warId);
+            if (Convert.ToInt32(duplicate.ExecuteScalar()) > 0)
+            {
+                transaction.Rollback();
+                return;
+            }
+        }
+
+        bool challengerWon = challengerScore > opponentScore;
+        string winnerClanId = challengerWon ? challengerClanId : opponentClanId;
+        string loserClanId = challengerWon ? opponentClanId : challengerClanId;
+        int winnerRating = challengerWon ? challengerRating : opponentRating;
+        int loserRating = challengerWon ? opponentRating : challengerRating;
+        double expectedWinner = 1d / (1d + Math.Pow(10d, (loserRating - winnerRating) / 400d));
+        int proposedDelta = Math.Max(1, (int)Math.Round(32d * (1d - expectedWinner)));
+        int delta = Math.Min(proposedDelta, Math.Max(0, loserRating));
+        int winnerAfter = winnerRating + delta;
+        int loserAfter = loserRating - delta;
+
+        using (var winnerUpdate = new MySqlCommand("""
+            UPDATE `Clan`
+            SET `rating` = @rating, `wins` = `wins` + 1, `updatedAt` = UTC_TIMESTAMP(3)
+            WHERE `id` = @clanId
+            """, connection, transaction))
+        {
+            winnerUpdate.Parameters.AddWithValue("@rating", winnerAfter);
+            winnerUpdate.Parameters.AddWithValue("@clanId", winnerClanId);
+            winnerUpdate.ExecuteNonQuery();
+        }
+        using (var loserUpdate = new MySqlCommand("""
+            UPDATE `Clan`
+            SET `rating` = @rating, `losses` = `losses` + 1, `updatedAt` = UTC_TIMESTAMP(3)
+            WHERE `id` = @clanId
+            """, connection, transaction))
+        {
+            loserUpdate.Parameters.AddWithValue("@rating", loserAfter);
+            loserUpdate.Parameters.AddWithValue("@clanId", loserClanId);
+            loserUpdate.ExecuteNonQuery();
+        }
+
+        InsertClanRatingEvent(
+            connection,
+            transaction,
+            warId,
+            winnerClanId,
+            "WIN",
+            winnerRating,
+            delta,
+            winnerAfter);
+        InsertClanRatingEvent(
+            connection,
+            transaction,
+            warId,
+            loserClanId,
+            "LOSS",
+            loserRating,
+            -delta,
+            loserAfter);
+
+        using (var complete = new MySqlCommand("""
+            UPDATE `ClanWar`
+            SET `status` = 'COMPLETED',
+                `challengerScore` = @challengerScore,
+                `opponentScore` = @opponentScore,
+                `winnerClanId` = @winnerClanId,
+                `loserClanId` = @loserClanId,
+                `completedAt` = UTC_TIMESTAMP(3),
+                `serverId` = NULL,
+                `updatedAt` = UTC_TIMESTAMP(3)
+            WHERE `id` = @warId
+            """, connection, transaction))
+        {
+            complete.Parameters.AddWithValue("@warId", warId);
+            complete.Parameters.AddWithValue("@challengerScore", challengerScore);
+            complete.Parameters.AddWithValue("@opponentScore", opponentScore);
+            complete.Parameters.AddWithValue("@winnerClanId", winnerClanId);
+            complete.Parameters.AddWithValue("@loserClanId", loserClanId);
+            complete.ExecuteNonQuery();
+        }
+        ReleaseClanWarServer(connection, transaction, warId, serverId);
+        InsertClanWarMessage(
+            connection,
+            transaction,
+            warId,
+            "RESULT",
+            $"Final result: [{challengerTag}] {challengerScore}-{opponentScore} [{opponentTag}]. Rating change: {delta} points.");
+        transaction.Commit();
+    }
+
+    private static void InsertClanRatingEvent(
+        MySqlConnection connection,
+        MySqlTransaction transaction,
+        string warId,
+        string clanId,
+        string result,
+        int ratingBefore,
+        int delta,
+        int ratingAfter)
+    {
+        using var command = new MySqlCommand("""
+            INSERT INTO `ClanRatingEvent`
+                (`id`, `clanWarId`, `clanId`, `result`, `ratingBefore`, `delta`, `ratingAfter`, `reversedAt`, `createdAt`)
+            VALUES
+                (@id, @warId, @clanId, @result, @ratingBefore, @delta, @ratingAfter, NULL, UTC_TIMESTAMP(3))
+            ON DUPLICATE KEY UPDATE
+                `result` = VALUES(`result`),
+                `ratingBefore` = VALUES(`ratingBefore`),
+                `delta` = VALUES(`delta`),
+                `ratingAfter` = VALUES(`ratingAfter`),
+                `reversedAt` = NULL
+            """, connection, transaction);
+        command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+        command.Parameters.AddWithValue("@warId", warId);
+        command.Parameters.AddWithValue("@clanId", clanId);
+        command.Parameters.AddWithValue("@result", result);
+        command.Parameters.AddWithValue("@ratingBefore", ratingBefore);
+        command.Parameters.AddWithValue("@delta", delta);
+        command.Parameters.AddWithValue("@ratingAfter", ratingAfter);
+        command.ExecuteNonQuery();
+    }
+
+    private static void ReleaseClanWarServer(
+        MySqlConnection connection,
+        MySqlTransaction transaction,
+        string warId,
+        string? serverId)
+    {
+        using (var deleteLease = new MySqlCommand(
+            "DELETE FROM `ClanWarServerLease` WHERE `clanWarId` = @warId",
+            connection,
+            transaction))
+        {
+            deleteLease.Parameters.AddWithValue("@warId", warId);
+            deleteLease.ExecuteNonQuery();
+        }
+        if (string.IsNullOrWhiteSpace(serverId)) return;
+        using var clearServer = new MySqlCommand("""
+            UPDATE `GameServer`
+            SET `joinPassword` = NULL, `matchState` = 'waiting'
+            WHERE `id` = @serverId
+            """, connection, transaction);
+        clearServer.Parameters.AddWithValue("@serverId", serverId);
+        clearServer.ExecuteNonQuery();
+    }
+
+    private static void InsertClanWarMessage(
+        MySqlConnection connection,
+        MySqlTransaction transaction,
+        string warId,
+        string kind,
+        string message)
+    {
+        using var command = new MySqlCommand("""
+            INSERT INTO `ClanWarChatMessage`
+                (`id`, `clanWarId`, `authorUserId`, `kind`, `message`, `createdAt`)
+            VALUES
+                (@id, @warId, NULL, @kind, @message, UTC_TIMESTAMP(3))
+            """, connection, transaction);
+        command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+        command.Parameters.AddWithValue("@warId", warId);
+        command.Parameters.AddWithValue("@kind", kind);
+        command.Parameters.AddWithValue("@message", message);
+        command.ExecuteNonQuery();
+    }
+
+    public string? UpdateServer(
         RaitoServerConfig config,
         int currentPlayers,
         string matchState,
@@ -902,14 +1291,15 @@ public sealed class RaitoDatabase : IDisposable
         using var connection = OpenConnection();
         using var command = new MySqlCommand("""
             INSERT INTO `GameServer`
-                (`id`, `name`, `ipAddress`, `port`, `region`, `isActive`, `currentPlayers`, `maxPlayers`, `matchState`, `currentMap`, `lastHeartbeatAt`)
+                (`id`, `name`, `ipAddress`, `port`, `region`, `purpose`, `isActive`, `currentPlayers`, `maxPlayers`, `matchState`, `currentMap`, `lastHeartbeatAt`)
             VALUES
-                (@id, @name, @ipAddress, @port, @region, 1, @currentPlayers, @maxPlayers, @matchState, @currentMap, @lastHeartbeatAt)
+                (@id, @name, @ipAddress, @port, @region, @purpose, 1, @currentPlayers, @maxPlayers, @matchState, @currentMap, @lastHeartbeatAt)
             ON DUPLICATE KEY UPDATE
                 `name` = VALUES(`name`),
                 `ipAddress` = VALUES(`ipAddress`),
                 `port` = VALUES(`port`),
                 `region` = VALUES(`region`),
+                `purpose` = VALUES(`purpose`),
                 `isActive` = 1,
                 `currentPlayers` = VALUES(`currentPlayers`),
                 `maxPlayers` = VALUES(`maxPlayers`),
@@ -923,12 +1313,20 @@ public sealed class RaitoDatabase : IDisposable
         command.Parameters.AddWithValue("@ipAddress", config.ServerIpAddress);
         command.Parameters.AddWithValue("@port", config.ServerPort);
         command.Parameters.AddWithValue("@region", config.Region);
+        command.Parameters.AddWithValue("@purpose", config.ServerPurpose);
         command.Parameters.AddWithValue("@currentPlayers", currentPlayers);
         command.Parameters.AddWithValue("@maxPlayers", config.MaxPlayers);
         command.Parameters.AddWithValue("@matchState", matchState);
         command.Parameters.AddWithValue("@currentMap", currentMap);
         command.Parameters.AddWithValue("@lastHeartbeatAt", DateTime.UtcNow);
         command.ExecuteNonQuery();
+
+        using var passwordCommand = new MySqlCommand(
+            "SELECT `joinPassword` FROM `GameServer` WHERE `id` = @id LIMIT 1",
+            connection);
+        passwordCommand.Parameters.AddWithValue("@id", config.ServerId);
+        object? value = passwordCommand.ExecuteScalar();
+        return value is string password && password.Length > 0 ? password : null;
     }
 
     private void ExpireModeration(string tableName, ulong steamId64)

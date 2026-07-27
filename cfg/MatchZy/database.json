@@ -1,8 +1,8 @@
 {
-    "DatabaseType": "MySQL",
-    "MySqlHost": "127.0.0.1",
-    "MySqlDatabase": "cs2platform",
-    "MySqlUsername": "cs2platform",
-    "MySqlPassword": "0814Zetgamer",
-    "MySqlPort": 3306
+  "DatabaseType": "MySQL",
+  "MySqlHost": "127.0.0.1",
+  "MySqlDatabase": "cs2platform",
+  "MySqlUsername": "cs2platform",
+  "MySqlPassword": "change_this_password",
+  "MySqlPort": 3306
 }

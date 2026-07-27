@@ -284,6 +284,11 @@ public partial class MatchZy
         {
             Log("[BETHECHAMP RANK] Failed to queue ranked match start.");
         }
+        if (raitoActiveClanWarId is not null &&
+            !raitoRankWriter.TryStartClanWar(raitoActiveClanWarId))
+        {
+            Log("[BETHECHAMP CLAN WAR] Failed to queue live-state update.");
+        }
     }
 
     private void CompleteRaitoRankedMatchTracking(string? winnerName, int team1Score, int team2Score, int mapsPlayed)
@@ -299,6 +304,15 @@ public partial class MatchZy
         if (!raitoRankWriter.TryFinalizeMatch(result))
         {
             Log("[BETHECHAMP RANK] Failed to queue ranked match finalization.");
+        }
+        if (raitoActiveClanWarId is not null &&
+            !raitoRankWriter.TryFinalizeClanWar(
+                raitoActiveClanWarId,
+                team1Score,
+                team2Score,
+                aborted: false))
+        {
+            Log("[BETHECHAMP CLAN WAR] Failed to queue Clan War result.");
         }
     }
 
@@ -316,6 +330,15 @@ public partial class MatchZy
         if (!raitoRankWriter.TryFinalizeMatch(result))
         {
             Log("[BETHECHAMP RANK] Failed to queue ranked match abort.");
+        }
+        if (raitoActiveClanWarId is not null &&
+            !raitoRankWriter.TryFinalizeClanWar(
+                raitoActiveClanWarId,
+                matchzyTeam1.seriesScore,
+                matchzyTeam2.seriesScore,
+                aborted: true))
+        {
+            Log("[BETHECHAMP CLAN WAR] Failed to queue aborted Clan War.");
         }
     }
 
@@ -382,6 +405,12 @@ internal abstract record RaitoRankWriteOperation;
 internal sealed record RaitoRankStartOperation(RaitoRankedMatchContext Context) : RaitoRankWriteOperation;
 internal sealed record RaitoXpEventsOperation(RaitoRankedMatchContext Context, IReadOnlyCollection<RaitoXpEvent> Events) : RaitoRankWriteOperation;
 internal sealed record RaitoRankFinalizeOperation(RaitoRankedMatchResult Result) : RaitoRankWriteOperation;
+internal sealed record RaitoClanWarStartOperation(string ClanWarId) : RaitoRankWriteOperation;
+internal sealed record RaitoClanWarFinalizeOperation(
+    string ClanWarId,
+    int ChallengerScore,
+    int OpponentScore,
+    bool Aborted) : RaitoRankWriteOperation;
 
 internal sealed class RaitoRankWriter : IDisposable
 {
@@ -417,6 +446,20 @@ internal sealed class RaitoRankWriter : IDisposable
 
     public bool TryFinalizeMatch(RaitoRankedMatchResult result) =>
         TryWrite(new RaitoRankFinalizeOperation(result));
+
+    public bool TryStartClanWar(string clanWarId) =>
+        TryWrite(new RaitoClanWarStartOperation(clanWarId));
+
+    public bool TryFinalizeClanWar(
+        string clanWarId,
+        int challengerScore,
+        int opponentScore,
+        bool aborted) =>
+        TryWrite(new RaitoClanWarFinalizeOperation(
+            clanWarId,
+            challengerScore,
+            opponentScore,
+            aborted));
 
     private bool TryWrite(RaitoRankWriteOperation operation) =>
         Volatile.Read(ref disposed) == 0 && queue.Writer.TryWrite(operation);
@@ -475,6 +518,16 @@ internal sealed class RaitoRankWriter : IDisposable
             case RaitoRankFinalizeOperation finalize:
                 database.FinalizeRankedMatch(finalize.Result);
                 return [];
+            case RaitoClanWarStartOperation clanWar:
+                database.MarkClanWarLive(clanWar.ClanWarId);
+                return [];
+            case RaitoClanWarFinalizeOperation clanWar:
+                database.FinalizeClanWar(
+                    clanWar.ClanWarId,
+                    clanWar.ChallengerScore,
+                    clanWar.OpponentScore,
+                    clanWar.Aborted);
+                return [];
             default:
                 throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported rank write operation.");
         }
@@ -485,6 +538,8 @@ internal sealed class RaitoRankWriter : IDisposable
         RaitoRankStartOperation => "match start",
         RaitoXpEventsOperation events => $"{events.Events.Count} XP event(s)",
         RaitoRankFinalizeOperation finalize => finalize.Result.Aborted ? "match abort" : "match finalization",
+        RaitoClanWarStartOperation => "Clan War start",
+        RaitoClanWarFinalizeOperation finalize => finalize.Aborted ? "Clan War abort" : "Clan War result",
         _ => "unknown"
     };
 

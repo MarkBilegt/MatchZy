@@ -14,7 +14,7 @@ namespace MatchZy
 
         public override string ModuleName => "BETHECHAMP Match Control";
 
-        public override string ModuleVersion => "0.8.19-bethechamp.1";
+        public override string ModuleVersion => "0.8.19-bethechamp.4";
 
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
