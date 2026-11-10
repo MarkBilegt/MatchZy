@@ -115,7 +115,7 @@ public class GrenadeThrownData
                 break;
             }
             default:
-                Console.WriteLine($"[BETHECHAMP] Unknown grenade: {Type}");
+                Console.WriteLine($"[REIGN] Unknown grenade: {Type}");
                 break;
         }
 

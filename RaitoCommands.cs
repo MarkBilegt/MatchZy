@@ -16,7 +16,7 @@ public partial class MatchZy
             .ToArray();
 
         // CounterStrikeSharp owns the ! form. This listener only supplies the dot
-        // aliases for non-administrative BETHECHAMP community commands.
+        // aliases for non-administrative REIGN community commands.
         if (tokens.Length == 0 || tokens[0][0] != '.')
             return false;
 

@@ -85,7 +85,7 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 
 General administration—including `!adminmenu`, `!map`, `!asay`, `!rcon`, moderation, and admin assignment—is owned by SimpleAdmin.
 
-# BETHECHAMP Test Match Commands
+# REIGN Test Match Commands
 
 These commands are restricted to SimpleAdmin root administrators and server console. Test matches remain isolated from production readiness, but human players receive normal ranking events so the XP flow can be verified against bots.
 

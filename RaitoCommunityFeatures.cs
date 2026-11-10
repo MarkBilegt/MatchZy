@@ -81,7 +81,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] SimpleAdmin immunity audit failed for {target!.SteamID}: {ex.Message}");
+            Log($"[REIGN] SimpleAdmin immunity audit failed for {target!.SteamID}: {ex.Message}");
             return HookResult.Stop;
         }
     }
@@ -100,7 +100,7 @@ public partial class MatchZy
         try { role = GetRaitoRoleFresh(steamId64); }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Reserved-slot authorization failed for {steamId64}: {ex.Message}");
+            Log($"[REIGN] Reserved-slot authorization failed for {steamId64}: {ex.Message}");
             role = "USER";
         }
         bool hasSimpleAdminReservation = AdminManager.PlayerHasPermissions(
@@ -147,7 +147,7 @@ public partial class MatchZy
         catch (InvalidOperationException ex) { WriteRaitoAdminLog(player, "admin_call.rejected", new RaitoTarget(player, player.SteamID, player.PlayerName), ex.Message); ReplyToUserCommand(player, ex.Message); }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Admin call failed: {ex.Message}");
+            Log($"[REIGN] Admin call failed: {ex.Message}");
             ReplyToUserCommand(player, "The admin-call service could not accept the request.");
         }
     }
@@ -180,7 +180,7 @@ public partial class MatchZy
 
         vote.Ballots[player.SteamID] = selected.MapName;
         try { raitoDatabase?.UpsertMapVoteBallot(vote.Id, player.SteamID, player.PlayerName, selected.MapName); }
-        catch (Exception ex) { Log($"[BETHECHAMP] Could not persist map ballot: {ex.Message}"); }
+        catch (Exception ex) { Log($"[REIGN] Could not persist map ballot: {ex.Message}"); }
         ReplyToUserCommand(player, $"Your vote is now {selected.DisplayName}. You may change it until voting closes.");
     }
 
@@ -207,12 +207,12 @@ public partial class MatchZy
             string id = raitoDatabase.CreateMapVote(raitoConfig.ServerId, Server.MapName, candidates.Select(item => item.MapName).ToList(), endsAt);
             raitoPublicMapVote = new RaitoPublicMapVote { Id = id, Candidates = candidates, EndsAt = endsAt, WinnerName = winnerName, Team1Score = team1Score, Team2Score = team2Score };
             WriteRaitoAdminLog(null, "map_vote.started", reason: $"Public map vote {id} opened.", metadata: new { voteId = id, candidates = candidates.Select(item => item.MapName).ToArray() });
-            Server.PrintToChatAll($" {ChatColors.Green}[BETHECHAMP]{ChatColors.Default} Next-map vote is open for {raitoConfig.MapVoteDurationSeconds}s.");
+            Server.PrintToChatAll($" {ChatColors.Green}[REIGN]{ChatColors.Default} Next-map vote is open for {raitoConfig.MapVoteDurationSeconds}s.");
             foreach (RaitoMapPoolItem item in candidates)
                 Server.PrintToChatAll($" {ChatColors.Green}!mapvote {item.MapName}{ChatColors.Default} - {item.DisplayName}");
             foreach (CCSPlayerController player in Utilities.GetPlayers().Where(player => player.IsValid && !player.IsBot && !player.IsHLTV))
             {
-                var menu = new ChatMenu("BETHECHAMP - Vote for the next map");
+                var menu = new ChatMenu("REIGN - Vote for the next map");
                 foreach (RaitoMapPoolItem item in candidates)
                 {
                     RaitoMapPoolItem choice = item;
@@ -225,7 +225,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Could not start public map vote: {ex.Message}");
+            Log($"[REIGN] Could not start public map vote: {ex.Message}");
             raitoPublicMapVote = null;
             return false;
         }
@@ -243,8 +243,8 @@ public partial class MatchZy
             : vote.Ballots.Values.GroupBy(map => map, StringComparer.OrdinalIgnoreCase).Where(group => group.Count() == highest).Select(group => group.Key).ToList();
         string winner = winners[Random.Shared.Next(winners.Count)];
         try { raitoDatabase?.CompleteMapVote(vote.Id, raitoConfig.ServerId, winner, totals); }
-        catch (Exception ex) { Log($"[BETHECHAMP] Could not finalize map vote in database: {ex.Message}"); }
-        Server.PrintToChatAll($" {ChatColors.Green}[BETHECHAMP]{ChatColors.Default} Next map: {ChatColors.Green}{winner}{ChatColors.Default} ({highest} votes).");
+        catch (Exception ex) { Log($"[REIGN] Could not finalize map vote in database: {ex.Message}"); }
+        Server.PrintToChatAll($" {ChatColors.Green}[REIGN]{ChatColors.Default} Next map: {ChatColors.Green}{winner}{ChatColors.Default} ({highest} votes).");
         WriteRaitoAdminLog(null, "map_vote.completed", reason: $"Map vote {vote.Id} selected {winner}.", metadata: new { voteId = vote.Id, winner, votes = highest });
         Team? voteWinner = vote.WinnerName == matchzyTeam1.teamName ? matchzyTeam1
             : vote.WinnerName == matchzyTeam2.teamName ? matchzyTeam2 : null;
@@ -259,7 +259,7 @@ public partial class MatchZy
         if (!IsPlayerValid(player) || vote is null || vote.Finalized || vote.EndsAt <= DateTime.UtcNow) return;
         vote.Ballots[player.SteamID] = selected.MapName;
         try { raitoDatabase?.UpsertMapVoteBallot(vote.Id, player.SteamID, player.PlayerName, selected.MapName); }
-        catch (Exception ex) { Log($"[BETHECHAMP] Could not persist menu ballot: {ex.Message}"); }
+        catch (Exception ex) { Log($"[REIGN] Could not persist menu ballot: {ex.Message}"); }
         ReplyToUserCommand(player, $"Your vote is now {selected.DisplayName}. You may change it until voting closes.");
     }
 

@@ -24,7 +24,7 @@ public class PlayerPracticeTimer
 
     public void DisplayTimerCenter(CCSPlayerController player)
     {
-        player.PrintToCenter($"BETHECHAMP TIMER: {GetTimerResult()}s");
+        player.PrintToCenter($"REIGN TIMER: {GetTimerResult()}s");
     }
 
     public double GetTimerResult()

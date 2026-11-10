@@ -17,9 +17,9 @@ namespace MatchZy
 
         public FakeConVar<bool> everyoneIsAdmin = new("matchzy_everyone_is_admin", "If set to true, all the players will have admin privilege. Default: false", false);
 
-        public FakeConVar<bool> showCreditsOnMatchStart = new("matchzy_show_credits_on_match_start", "Whether to show the BETHECHAMP match-control startup message. Default: true", true);
+        public FakeConVar<bool> showCreditsOnMatchStart = new("matchzy_show_credits_on_match_start", "Whether to show the REIGN match-control startup message. Default: true", true);
 
-        public FakeConVar<string> hostnameFormat = new("matchzy_hostname_format", "The server hostname to use. Set to \"\" to disable/use existing. Default: BETHECHAMP | {TEAM1} vs {TEAM2}", "BETHECHAMP | {TEAM1} vs {TEAM2}");
+        public FakeConVar<string> hostnameFormat = new("matchzy_hostname_format", "The server hostname to use. Set to \"\" to disable/use existing. Default: REIGN | {TEAM1} vs {TEAM2}", "REIGN | {TEAM1} vs {TEAM2}");
 
         public FakeConVar<bool> enableDamageReport = new("matchzy_enable_damage_report", "Whether to show damage report after each round or not. Default: true", true);
 
@@ -178,7 +178,7 @@ namespace MatchZy
             pauseAfterRoundRestore = ParseBoolSetting(args, pauseAfterRoundRestore);
         }
 
-        [ConsoleCommand("matchzy_chat_prefix", "Chat prefix for BETHECHAMP messages. Default value: [{Green}BETHECHAMP{Default}]")]
+        [ConsoleCommand("matchzy_chat_prefix", "Chat prefix for REIGN messages. Default value: [{Green}REIGN{Default}]")]
         public void MatchZyChatPrefix(CCSPlayerController? player, CommandInfo command)
         {
             if (player != null) return;
@@ -187,7 +187,7 @@ namespace MatchZy
 
             if (string.IsNullOrEmpty(args))
             {
-                chatPrefix = $"[{ChatColors.Green}BETHECHAMP{ChatColors.Default}]";
+                chatPrefix = $"[{ChatColors.Green}REIGN{ChatColors.Default}]";
                 return;
             }
 
@@ -198,7 +198,7 @@ namespace MatchZy
             Log($"[MatchZyChatPrefix] chatPrefix: {chatPrefix}");
         }
 
-        [ConsoleCommand("matchzy_chat_messages_timer_delay", "Delay between BETHECHAMP ready-check and pause reminders. Default: 12")]
+        [ConsoleCommand("matchzy_chat_messages_timer_delay", "Delay between REIGN ready-check and pause reminders. Default: 12")]
         public void MatchZyChatMessagesTimerDelay(CCSPlayerController? player, CommandInfo command)
         {
             if (player != null) return;
@@ -219,7 +219,7 @@ namespace MatchZy
                     }
                 }
             } else if (command.ArgCount == 1) {
-                ReplyToUserCommand(player, $"BETHECHAMP reminder interval: {ChatColors.Green}{chatTimerDelay}s{ChatColors.Default}.");
+                ReplyToUserCommand(player, $"REIGN reminder interval: {ChatColors.Green}{chatTimerDelay}s{ChatColors.Default}.");
             }
         }
 

@@ -16,19 +16,19 @@ public partial class MatchZy
     {
         if (raitoDatabase is null)
         {
-            Log("[BETHECHAMP RANK] Ranking is disabled because the shared database is unavailable.");
+            Log("[REIGN RANK] Ranking is disabled because the shared database is unavailable.");
             return;
         }
 
         raitoRankWriter = new RaitoRankWriter(
             raitoDatabase,
             NotifyRaitoXpEventsApplied,
-            message => Log($"[BETHECHAMP RANK] {message}"));
+            message => Log($"[REIGN RANK] {message}"));
         RegisterEventHandler<EventRoundStart>(OnRaitoRankRoundStart, HookMode.Post);
         RegisterEventHandler<EventPlayerDeath>(OnRaitoRankPlayerDeath, HookMode.Post);
         RegisterEventHandler<EventRoundEnd>(OnRaitoRankRoundEnd, HookMode.Post);
         RegisterEventHandler<EventRoundMvp>(OnRaitoRankRoundMvp, HookMode.Post);
-        Log("[BETHECHAMP RANK] Transactional XP ledger enabled.");
+        Log("[REIGN RANK] Transactional XP ledger enabled.");
     }
 
     private void DisposeRaitoRanking()
@@ -282,12 +282,12 @@ public partial class MatchZy
         raitoCurrentRoundNumber = 0;
         if (!raitoRankWriter.TryStartMatch(GetRaitoRankedMatchContext()))
         {
-            Log("[BETHECHAMP RANK] Failed to queue ranked match start.");
+            Log("[REIGN RANK] Failed to queue ranked match start.");
         }
         if (raitoActiveClanWarId is not null &&
             !raitoRankWriter.TryStartClanWar(raitoActiveClanWarId))
         {
-            Log("[BETHECHAMP CLAN WAR] Failed to queue live-state update.");
+            Log("[REIGN CLAN WAR] Failed to queue live-state update.");
         }
     }
 
@@ -303,7 +303,7 @@ public partial class MatchZy
             mapsPlayed);
         if (!raitoRankWriter.TryFinalizeMatch(result))
         {
-            Log("[BETHECHAMP RANK] Failed to queue ranked match finalization.");
+            Log("[REIGN RANK] Failed to queue ranked match finalization.");
         }
         if (raitoActiveClanWarId is not null &&
             !raitoRankWriter.TryFinalizeClanWar(
@@ -312,7 +312,7 @@ public partial class MatchZy
                 team2Score,
                 aborted: false))
         {
-            Log("[BETHECHAMP CLAN WAR] Failed to queue Clan War result.");
+            Log("[REIGN CLAN WAR] Failed to queue Clan War result.");
         }
     }
 
@@ -329,7 +329,7 @@ public partial class MatchZy
             Aborted: true);
         if (!raitoRankWriter.TryFinalizeMatch(result))
         {
-            Log("[BETHECHAMP RANK] Failed to queue ranked match abort.");
+            Log("[REIGN RANK] Failed to queue ranked match abort.");
         }
         if (raitoActiveClanWarId is not null &&
             !raitoRankWriter.TryFinalizeClanWar(
@@ -338,7 +338,7 @@ public partial class MatchZy
                 matchzyTeam2.seriesScore,
                 aborted: true))
         {
-            Log("[BETHECHAMP CLAN WAR] Failed to queue aborted Clan War.");
+            Log("[REIGN CLAN WAR] Failed to queue aborted Clan War.");
         }
     }
 
@@ -348,7 +348,7 @@ public partial class MatchZy
 
         if (!raitoRankWriter.TryWriteEvents(GetRaitoRankedMatchContext(), events))
         {
-            Log($"[BETHECHAMP RANK] Failed to queue {events.Count} XP event(s).");
+            Log($"[REIGN RANK] Failed to queue {events.Count} XP event(s).");
         }
     }
 

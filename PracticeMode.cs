@@ -566,7 +566,7 @@ namespace MatchZy
                 var savedNadesDict = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, Dictionary<string, string>>>>(existingJson)
                                     ?? new Dictionary<string, Dictionary<string, Dictionary<string, string>>>();
 
-                ReplyToUserCommand(player, $"\x0DBETHECHAMP LINEUP VAULT | \x06{Server.MapName}\x0D");
+                ReplyToUserCommand(player, $"\x0DREIGN LINEUP VAULT | \x06{Server.MapName}\x0D");
 
                 // List lineups for the specified player
                 ListLineups(player, "default", Server.MapName, savedNadesDict, nadeFilter);
@@ -577,7 +577,7 @@ namespace MatchZy
             catch (JsonException ex)
             {
                 Log($"Error handling JSON: {ex.Message}");
-                ReplyToUserCommand(player, "Lineup vault could not be read. Check the BETHECHAMP server log.");
+                ReplyToUserCommand(player, "Lineup vault could not be read. Check the REIGN server log.");
             }
         }
 
@@ -1881,7 +1881,7 @@ namespace MatchZy
             {
                 playerTimers[userId].KillTimer();
                 double timerResult = playerTimers[userId].GetTimerResult();
-                player.PrintToCenter($"BETHECHAMP TIMER: {timerResult}s");
+                player.PrintToCenter($"REIGN TIMER: {timerResult}s");
                 PrintToPlayerChat(player, $"Timer locked at {ChatColors.Green}{timerResult}s{ChatColors.Default}.");
                 playerTimers.Remove(userId);
             }

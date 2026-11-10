@@ -37,7 +37,7 @@ namespace MatchZy
                 Server.ExecuteCommand("""exec gamemode_competitive.cfg;""");
             }
             ExecOverrideCfg(sleepCfgPath);
-            Log("[StartSleepMode] BETHECHAMP match control deactivated.");
+            Log("[StartSleepMode] REIGN match control deactivated.");
         }
 
         [ConsoleCommand("css_sleep", "Starts sleep mode")]

@@ -1252,7 +1252,7 @@ namespace MatchZy
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Admin{ChatColors.Default} has paused the match.");
             if (player == null)
             {
-                Server.PrintToConsole($"[BETHECHAMP] {Localizer["matchzy.pause.adminpausedthematch"]}");
+                Server.PrintToConsole($"[REIGN] {Localizer["matchzy.pause.adminpausedthematch"]}");
             }
             SetMatchPausedFlags();
             StartPauseTracking(PauseType.Admin, 0);
@@ -1272,7 +1272,7 @@ namespace MatchZy
 
                 if (player == null)
                 {
-                    Server.PrintToConsole("[BETHECHAMP] Admin resumed the match.");
+                    Server.PrintToConsole("[REIGN] Admin resumed the match.");
                 }
             }
         }
@@ -1398,7 +1398,7 @@ namespace MatchZy
         {
             if (!IsPlayerValid(player)) return;
 
-            ReplyToUserCommand(player, "BETHECHAMP command deck:");
+            ReplyToUserCommand(player, "REIGN command deck:");
 
             if (isPractice)
             {
@@ -1833,7 +1833,7 @@ namespace MatchZy
 
         private void Log(string message)
         {
-            Console.WriteLine("[BETHECHAMP] " + message);
+            Console.WriteLine("[REIGN] " + message);
         }
 
         private void AutoStart()

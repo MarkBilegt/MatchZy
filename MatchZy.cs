@@ -16,15 +16,15 @@ namespace MatchZy
     public partial class MatchZy : BasePlugin
     {
 
-        public override string ModuleName => "BETHECHAMP Match Control";
+        public override string ModuleName => "REIGN Match Control";
 
-        public override string ModuleVersion => "0.9.2-bethechamp.1";
+        public override string ModuleVersion => "0.9.2-reign.1";
 
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
-        public override string ModuleDescription => "BETHECHAMP match, scrim, and practice control for CS2.";
+        public override string ModuleDescription => "REIGN match, scrim, and practice control for CS2.";
 
-        public string chatPrefix = $"[{ChatColors.Green}BETHECHAMP{ChatColors.Default}]";
+        public string chatPrefix = $"[{ChatColors.Green}REIGN{ChatColors.Default}]";
 
         // Plugin start phase data
         public bool isPractice = false;
@@ -70,7 +70,7 @@ namespace MatchZy
 
         // Game Config
         public bool isKnifeRequired = true;
-        public int minimumReadyRequired = 10; // BETHECHAMP public matches start once ten players are ready.
+        public int minimumReadyRequired = 10; // REIGN public matches start once ten players are ready.
         public bool isWhitelistRequired = false;
         public bool isSaveNadesAsGlobalEnabled = false;
 

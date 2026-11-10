@@ -67,7 +67,7 @@ public partial class MatchZy
             }
             catch (Exception ex)
             {
-                Log($"[BETHECHAMP] Skin attribute signature is unavailable; model changes remain limited until gamedata is installed: {ex.Message}");
+                Log($"[REIGN] Skin attribute signature is unavailable; model changes remain limited until gamedata is installed: {ex.Message}");
             }
             InitializeRaitoGloveLoadoutHook();
         }
@@ -78,16 +78,16 @@ public partial class MatchZy
             if (File.Exists(databaseConfigPath))
             {
                 raitoDatabase = new RaitoDatabase(databaseConfigPath);
-                Log("[BETHECHAMP] Shared MySQL database connected.");
+                Log("[REIGN] Shared MySQL database connected.");
             }
             else
             {
-                Log($"[BETHECHAMP] Shared database config not found at {databaseConfigPath}. Database-backed commands are disabled.");
+                Log($"[REIGN] Shared database config not found at {databaseConfigPath}. Database-backed commands are disabled.");
             }
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Shared database unavailable: {ex.Message}");
+            Log($"[REIGN] Shared database unavailable: {ex.Message}");
             raitoDatabase = null;
         }
 
@@ -178,13 +178,13 @@ public partial class MatchZy
     {
         if (!IsPlayerValid(player))
         {
-            Log("[BETHECHAMP] Skin refresh rejected because the player is invalid.");
+            Log("[REIGN] Skin refresh rejected because the player is invalid.");
             return false;
         }
 
         if (raitoDatabase is null)
         {
-            Log("[BETHECHAMP] Skin refresh rejected because the shared database is unavailable.");
+            Log("[REIGN] Skin refresh rejected because the shared database is unavailable.");
             return false;
         }
 
@@ -194,7 +194,7 @@ public partial class MatchZy
         lock (raitoSkinCacheLock) raitoSkinCache.TryGetValue(player!.SteamID, out skins);
         string side = player.TeamNum == (byte)CsTeam.CounterTerrorist ? "CT" : player.TeamNum == (byte)CsTeam.Terrorist ? "T" : "ALL";
         string loadedKeys = skins is null || skins.Count == 0 ? "none" : string.Join(", ", skins.Keys.OrderBy(key => key).Take(20));
-        Log($"[BETHECHAMP] Skin refresh for {player.PlayerName} ({player.SteamID}): {skins?.Count ?? 0} saved slots, active side {side}. Keys: {loadedKeys}");
+        Log($"[REIGN] Skin refresh for {player.PlayerName} ({player.SteamID}): {skins?.Count ?? 0} saved slots, active side {side}. Keys: {loadedKeys}");
         ApplyRaitoSkins(player!, diagnostic: true, recreateWeapons: true);
         return true;
     }
@@ -210,7 +210,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Skin load failed for {player.SteamID}: {ex.Message}");
+            Log($"[REIGN] Skin load failed for {player.SteamID}: {ex.Message}");
         }
     }
 
@@ -221,16 +221,16 @@ public partial class MatchZy
             if (!raitoSkinGuidelineWarningLogged)
             {
                 raitoSkinGuidelineWarningLogged = true;
-                Log("[BETHECHAMP] Skin attributes are disabled because CounterStrikeSharp FollowCS2ServerGuidelines is enabled. Set it to false in addons/counterstrikesharp/configs/core.json and restart the server.");
+                Log("[REIGN] Skin attributes are disabled because CounterStrikeSharp FollowCS2ServerGuidelines is enabled. Set it to false in addons/counterstrikesharp/configs/core.json and restart the server.");
             }
 
-            if (diagnostic) Log("[BETHECHAMP] Skin refresh stopped because skin attributes are disabled.");
+            if (diagnostic) Log("[REIGN] Skin refresh stopped because skin attributes are disabled.");
             return;
         }
 
         if (!IsPlayerValid(player) || player.PlayerPawn.Value?.WeaponServices?.MyWeapons is not { } weapons)
         {
-            if (diagnostic) Log("[BETHECHAMP] Skin refresh stopped because the player has no valid weapon services yet.");
+            if (diagnostic) Log("[REIGN] Skin refresh stopped because the player has no valid weapon services yet.");
             return;
         }
 
@@ -238,7 +238,7 @@ public partial class MatchZy
         lock (raitoSkinCacheLock) raitoSkinCache.TryGetValue(player.SteamID, out skins);
         if (skins is null || skins.Count == 0)
         {
-            if (diagnostic) Log("[BETHECHAMP] Skin refresh stopped because no saved skin slots were loaded.");
+            if (diagnostic) Log("[REIGN] Skin refresh stopped because no saved skin slots were loaded.");
             return;
         }
 
@@ -281,7 +281,7 @@ public partial class MatchZy
 
         if (diagnostic)
         {
-            Log($"[BETHECHAMP] Skin refresh found {appliedWeapons} matching weapon entities: {(matchedWeapons.Count == 0 ? "none" : string.Join(", ", matchedWeapons))}.");
+            Log($"[REIGN] Skin refresh found {appliedWeapons} matching weapon entities: {(matchedWeapons.Count == 0 ? "none" : string.Join(", ", matchedWeapons))}.");
         }
 
         if (weaponsToRecreate.Count > 0)
@@ -344,7 +344,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Skin apply failed for {weaponClass}: {ex.Message}");
+            Log($"[REIGN] Skin apply failed for {weaponClass}: {ex.Message}");
             return false;
         }
     }
@@ -372,7 +372,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] GiveNamedItem skin hook failed: {ex.Message}");
+            Log($"[REIGN] GiveNamedItem skin hook failed: {ex.Message}");
         }
 
         return HookResult.Continue;
@@ -408,13 +408,13 @@ public partial class MatchZy
                 }
                 catch (Exception ex)
                 {
-                    Log($"[BETHECHAMP] Weapon recreation failed for {state.DesignerName}: {ex.Message}");
+                    Log($"[REIGN] Weapon recreation failed for {state.DesignerName}: {ex.Message}");
                 }
             }
 
             if (diagnostic)
             {
-                Log($"[BETHECHAMP] Recreated {weapons.Count} weapon entities; applying skins to the new entities.");
+                Log($"[REIGN] Recreated {weapons.Count} weapon entities; applying skins to the new entities.");
             }
 
             AddTimer(0.15f, () => ApplyRaitoSkins(player), TimerFlags.STOP_ON_MAPCHANGE);
@@ -440,7 +440,7 @@ public partial class MatchZy
             raitoEconItemViewCopy = new MemoryFunctionWithReturn<nint, nint, nint>(GameData.GetSignature("CEconItemView::operator="));
             raitoGetItemInLoadout.Hook(OnRaitoGetItemInLoadout, HookMode.Post);
             raitoGloveLoadoutHookInstalled = true;
-            Log("[BETHECHAMP] Glove loadout integration initialized.");
+            Log("[REIGN] Glove loadout integration initialized.");
         }
         catch (Exception ex)
         {
@@ -451,7 +451,7 @@ public partial class MatchZy
             raitoSetModelFromClass = null;
             raitoEconItemViewConstructor = null;
             raitoEconItemViewCopy = null;
-            Log($"[BETHECHAMP] Glove loadout integration is unavailable; using the legacy refresh path: {ex.Message}");
+            Log($"[REIGN] Glove loadout integration is unavailable; using the legacy refresh path: {ex.Message}");
         }
     }
 
@@ -485,7 +485,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Glove loadout hook failed for {player.SteamID}: {ex.Message}");
+            Log($"[REIGN] Glove loadout hook failed for {player.SteamID}: {ex.Message}");
             return HookResult.Continue;
         }
     }
@@ -588,19 +588,19 @@ public partial class MatchZy
                             pawn.AcceptInput("SetBodygroup", value: "first_or_third_person,1");
                             if (diagnostic)
                             {
-                                Log($"[BETHECHAMP] Glove entity state after rebuild: {DescribeRaitoGloveState(pawn)}");
+                                Log($"[REIGN] Glove entity state after rebuild: {DescribeRaitoGloveState(pawn)}");
                             }
                         });
                         player.ExecuteClientCommand("lastinv");
 
                         if (diagnostic)
                         {
-                            Log($"[BETHECHAMP] Refreshed inventory and rebuilt glove wearable definition {skin.ItemDefIndex.Value} with paint kit {skin.PaintKitId} for side {side}; intercepted {hookHits} loadout request(s), pawn sync {(pawnGlovesSynced ? "succeeded" : "failed")}.");
+                            Log($"[REIGN] Refreshed inventory and rebuilt glove wearable definition {skin.ItemDefIndex.Value} with paint kit {skin.PaintKitId} for side {side}; intercepted {hookHits} loadout request(s), pawn sync {(pawnGlovesSynced ? "succeeded" : "failed")}.");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Log($"[BETHECHAMP] Glove wearable rebuild failed: {ex.Message}");
+                        Log($"[REIGN] Glove wearable rebuild failed: {ex.Message}");
                     }
                 });
             }, TimerFlags.STOP_ON_MAPCHANGE);
@@ -678,12 +678,12 @@ public partial class MatchZy
                 }, TimerFlags.STOP_ON_MAPCHANGE);
                 if (diagnostic)
                 {
-                    Log($"[BETHECHAMP] Applied legacy glove definition {definitionIndex} with paint kit {skin.PaintKitId} for side {side}; change counter is {pawn.EconGlovesChanged}.");
+                    Log($"[REIGN] Applied legacy glove definition {definitionIndex} with paint kit {skin.PaintKitId} for side {side}; change counter is {pawn.EconGlovesChanged}.");
                 }
             }
             catch (Exception ex)
             {
-                Log($"[BETHECHAMP] Legacy glove apply failed: {ex.Message}");
+                Log($"[REIGN] Legacy glove apply failed: {ex.Message}");
             }
         }, TimerFlags.STOP_ON_MAPCHANGE);
     }
@@ -738,14 +738,14 @@ public partial class MatchZy
     {
         if (raitoSignatureWarningLogged) return;
         raitoSignatureWarningLogged = true;
-        Log("[BETHECHAMP] Install gamedata/raito_matchzy.json in the global CounterStrikeSharp gamedata folder to enable knife and glove paint attributes.");
+        Log("[REIGN] Install gamedata/raito_matchzy.json in the global CounterStrikeSharp gamedata folder to enable knife and glove paint attributes.");
     }
 
     private void LogRaitoAttributeFailure(Exception ex)
     {
         if (raitoSignatureWarningLogged) return;
         raitoSignatureWarningLogged = true;
-        Log($"[BETHECHAMP] Skin attribute update failed: {ex.Message}");
+        Log($"[REIGN] Skin attribute update failed: {ex.Message}");
     }
 
     private void UpdateRaitoEconItemId(CEconItemView item)
@@ -761,7 +761,7 @@ public partial class MatchZy
         string path = Path.Combine(Server.GameDirectory, "csgo", "addons", "counterstrikesharp", "configs", "core.json");
         if (!File.Exists(path))
         {
-            Log($"[BETHECHAMP] CounterStrikeSharp core config was not found at {path}; skin attributes are disabled.");
+            Log($"[REIGN] CounterStrikeSharp core config was not found at {path}; skin attributes are disabled.");
             return false;
         }
 
@@ -770,7 +770,7 @@ public partial class MatchZy
             using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
             if (!document.RootElement.TryGetProperty("FollowCS2ServerGuidelines", out JsonElement property) || property.ValueKind != JsonValueKind.False)
             {
-                Log("[BETHECHAMP] Skin attributes are disabled because FollowCS2ServerGuidelines is not false.");
+                Log("[REIGN] Skin attributes are disabled because FollowCS2ServerGuidelines is not false.");
                 return false;
             }
 
@@ -778,7 +778,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Could not read CounterStrikeSharp core config; skin attributes are disabled: {ex.Message}");
+            Log($"[REIGN] Could not read CounterStrikeSharp core config; skin attributes are disabled: {ex.Message}");
             return false;
         }
     }
@@ -786,7 +786,7 @@ public partial class MatchZy
     private void OnRaitoClientAuthorized(int playerSlot, ulong steamId64)
     {
         // SimpleAdmin is the sole authority for bans and communication penalties.
-        // BETHECHAMP keeps only its community reserved-slot behavior here.
+        // REIGN keeps only its community reserved-slot behavior here.
         AddTimer(1.0f, () => EnforceRaitoReservedSlot(steamId64), TimerFlags.STOP_ON_MAPCHANGE);
     }
 
@@ -820,7 +820,7 @@ public partial class MatchZy
         catch (Exception ex)
         {
             Interlocked.Exchange(ref raitoHeartbeatInProgress, 0);
-            Log($"[BETHECHAMP] Could not capture heartbeat state: {ex.Message}");
+            Log($"[REIGN] Could not capture heartbeat state: {ex.Message}");
             return;
         }
 
@@ -863,7 +863,7 @@ public partial class MatchZy
 
                         if (error is not null)
                         {
-                            Log($"[BETHECHAMP] Heartbeat failed: {error.Message}");
+                            Log($"[REIGN] Heartbeat failed: {error.Message}");
                             return;
                         }
 
@@ -892,7 +892,7 @@ public partial class MatchZy
         {
             if (!raitoPasswordConVarWarningLogged)
             {
-                Log("[BETHECHAMP] sv_password is unavailable; website password changes cannot be applied.");
+                Log("[REIGN] sv_password is unavailable; website password changes cannot be applied.");
                 raitoPasswordConVarWarningLogged = true;
             }
             return;
@@ -905,8 +905,8 @@ public partial class MatchZy
 
         passwordConVar.ValueAsString = requestedPassword;
         Log(string.IsNullOrEmpty(requestedPassword)
-            ? "[BETHECHAMP] Server join password cleared from website control."
-            : "[BETHECHAMP] Server join password updated from website control.");
+            ? "[REIGN] Server join password cleared from website control."
+            : "[REIGN] Server join password updated from website control.");
     }
 
     private void ApplyRaitoClanWarAssignment(RaitoClanWarAssignment? assignment)
@@ -920,7 +920,7 @@ public partial class MatchZy
             {
                 if (isMatchSetup) ResetMatch();
                 raitoActiveClanWarId = null;
-                Log("[BETHECHAMP CLAN WAR] Assignment released; server returned to standby.");
+                Log("[REIGN CLAN WAR] Assignment released; server returned to standby.");
             }
             return;
         }
@@ -928,7 +928,7 @@ public partial class MatchZy
             return;
         if (isMatchSetup || isMatchLive)
         {
-            Log($"[BETHECHAMP CLAN WAR] War #{assignment.WarNumber} is queued, but another match is still active.");
+            Log($"[REIGN CLAN WAR] War #{assignment.WarNumber} is queued, but another match is still active.");
             return;
         }
 
@@ -977,12 +977,12 @@ public partial class MatchZy
 
         if (!LoadMatchFromJSON(json))
         {
-            Log($"[BETHECHAMP CLAN WAR] Failed to load War #{assignment.WarNumber}.");
+            Log($"[REIGN CLAN WAR] Failed to load War #{assignment.WarNumber}.");
             return;
         }
 
         raitoActiveClanWarId = assignment.WarId;
-        Log($"[BETHECHAMP CLAN WAR] Loaded War #{assignment.WarNumber} on {assignment.MapName}.");
+        Log($"[REIGN CLAN WAR] Loaded War #{assignment.WarNumber} on {assignment.MapName}.");
     }
 
     private void NotifyRaitoAdminCallUpdates(IReadOnlyList<RaitoAdminCallUpdate> updates)
@@ -1019,7 +1019,7 @@ public partial class MatchZy
                     {
                         if (task.IsFaulted)
                         {
-                            Log($"[BETHECHAMP] Game command polling failed: {task.Exception?.GetBaseException().Message}");
+                            Log($"[REIGN] Game command polling failed: {task.Exception?.GetBaseException().Message}");
                             return;
                         }
 
@@ -1037,7 +1037,7 @@ public partial class MatchZy
             catch (Exception ex)
             {
                 Interlocked.Exchange(ref raitoCommandPollInProgress, 0);
-                Log($"[BETHECHAMP] Could not schedule game command processing: {ex.Message}");
+                Log($"[REIGN] Could not schedule game command processing: {ex.Message}");
             }
         }, TaskScheduler.Default);
     }
@@ -1052,7 +1052,7 @@ public partial class MatchZy
             CCSPlayerController? player = Utilities.GetPlayers().FirstOrDefault(candidate =>
                 candidate.IsValid && !candidate.IsBot && !candidate.IsHLTV && candidate.SteamID == command.TargetSteamId64);
             string reason = SanitizeServerCommandText(
-                string.IsNullOrWhiteSpace(command.Reason) ? "BETHECHAMP remote administration" : command.Reason);
+                string.IsNullOrWhiteSpace(command.Reason) ? "REIGN remote administration" : command.Reason);
 
             switch (command.Type.ToUpperInvariant())
             {
@@ -1075,7 +1075,7 @@ public partial class MatchZy
                     }
                     break;
                 case "MUTE":
-                    // BETHECHAMP "MUTE" means text chat; SimpleAdmin calls that a gag.
+                    // REIGN "MUTE" means text chat; SimpleAdmin calls that a gag.
                     int gagMinutes = GetSimpleAdminDurationMinutes("Mute", command.TargetSteamId64);
                     Server.ExecuteCommand(
                         $"css_addgag {command.TargetSteamId64} {gagMinutes} \"{reason}\"");
@@ -1087,7 +1087,7 @@ public partial class MatchZy
                     detail = "Dispatched text ungag to SimpleAdmin.";
                     break;
                 case "GAG":
-                    // BETHECHAMP "GAG" means voice; SimpleAdmin calls that a mute.
+                    // REIGN "GAG" means voice; SimpleAdmin calls that a mute.
                     int muteMinutes = GetSimpleAdminDurationMinutes("Gag", command.TargetSteamId64);
                     Server.ExecuteCommand(
                         $"css_addmute {command.TargetSteamId64} {muteMinutes} \"{reason}\"");
@@ -1122,18 +1122,18 @@ public partial class MatchZy
             }
 
             raitoDatabase.AddGameCommandReceipt(command.Id, raitoConfig.ServerId, status, detail);
-            Log($"[BETHECHAMP] Discord game command {command.Type} for {command.TargetSteamId64}: {status} - {detail}");
+            Log($"[REIGN] Discord game command {command.Type} for {command.TargetSteamId64}: {status} - {detail}");
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Game command {command.Id} failed: {ex.Message}");
+            Log($"[REIGN] Game command {command.Id} failed: {ex.Message}");
             try
             {
                 raitoDatabase.AddGameCommandReceipt(command.Id, raitoConfig.ServerId, "FAILED", ex.Message);
             }
             catch (Exception receiptError)
             {
-                Log($"[BETHECHAMP] Could not acknowledge failed game command {command.Id}: {receiptError.Message}");
+                Log($"[REIGN] Could not acknowledge failed game command {command.Id}: {receiptError.Message}");
             }
         }
     }
@@ -1208,7 +1208,7 @@ public partial class MatchZy
         }
         catch (Exception ex)
         {
-            Log($"[BETHECHAMP] Admin log failed for {action}: {ex.Message}");
+            Log($"[REIGN] Admin log failed for {action}: {ex.Message}");
         }
     }
 

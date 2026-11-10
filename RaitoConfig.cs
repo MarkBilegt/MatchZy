@@ -6,7 +6,7 @@ namespace MatchZy;
 public sealed class RaitoServerConfig
 {
     public string ServerId { get; set; } = "local-cs2-server";
-    public string ServerName { get; set; } = "BETHECHAMP 5v5";
+    public string ServerName { get; set; } = "REIGN 5v5";
     public string ServerIpAddress { get; set; } = "127.0.0.1";
     public int ServerPort { get; set; } = 27015;
     public string Region { get; set; } = "Local";
@@ -37,7 +37,7 @@ public sealed class RaitoServerConfig
         config.ApplyEnvironment();
 
         config.ServerId = string.IsNullOrWhiteSpace(config.ServerId) ? "local-cs2-server" : config.ServerId.Trim();
-        config.ServerName = string.IsNullOrWhiteSpace(config.ServerName) ? "BETHECHAMP 5v5" : config.ServerName.Trim();
+        config.ServerName = string.IsNullOrWhiteSpace(config.ServerName) ? "REIGN 5v5" : config.ServerName.Trim();
         config.ServerIpAddress = string.IsNullOrWhiteSpace(config.ServerIpAddress) ? "127.0.0.1" : config.ServerIpAddress.Trim();
         config.Region = string.IsNullOrWhiteSpace(config.Region) ? "Unknown" : config.Region.Trim();
         config.ServerPurpose = string.Equals(config.ServerPurpose, "CLAN_WAR", StringComparison.OrdinalIgnoreCase)

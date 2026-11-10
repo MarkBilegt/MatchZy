@@ -120,11 +120,11 @@ public sealed class RaitoDatabase : IDisposable
         var config = JsonSerializer.Deserialize<DatabaseConfig>(json, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
-        }) ?? throw new InvalidOperationException("BETHECHAMP database configuration is empty.");
+        }) ?? throw new InvalidOperationException("REIGN database configuration is empty.");
 
         if (!string.Equals(config.DatabaseType, "MySQL", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("BETHECHAMP shared database requires DatabaseType=MySQL in database.json.");
+            throw new InvalidOperationException("REIGN shared database requires DatabaseType=MySQL in database.json.");
         }
 
         if (string.IsNullOrWhiteSpace(config.MySqlHost) ||
@@ -1342,7 +1342,7 @@ public sealed class RaitoDatabase : IDisposable
             steamId64,
             "EXPIRED",
             "EXPIRED",
-            "BETHECHAMP Bot",
+            "REIGN Bot",
             string.Empty,
             null,
             "Punishment duration elapsed.",

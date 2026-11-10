@@ -26,7 +26,7 @@ public partial class MatchZy
     private bool raitoTestStatsRosterReady;
     private int raitoTestRosterCheckAttempts;
 
-    [ConsoleCommand("css_testmatch", "Starts, stops, or reports a BETHECHAMP bot test match")]
+    [ConsoleCommand("css_testmatch", "Starts, stops, or reports a REIGN bot test match")]
     public void OnRaitoTestMatchCommand(CCSPlayerController? player, CommandInfo command) =>
         ExecuteRaitoTestMatchCommand(player, GetCommandArguments(command));
 
@@ -125,8 +125,8 @@ public partial class MatchZy
         isPreVeto = false;
         isVeto = false;
 
-        matchzyTeam1.teamName = "BETHECHAMP_TEST_CT";
-        matchzyTeam2.teamName = "BETHECHAMP_TEST_T";
+        matchzyTeam1.teamName = "REIGN_TEST_CT";
+        matchzyTeam2.teamName = "REIGN_TEST_T";
         matchConfig.NumMaps = 1;
         matchConfig.CurrentMapNumber = 0;
         matchConfig.SeriesCanClinch = true;
@@ -141,8 +141,8 @@ public partial class MatchZy
             bots = terroristBots + counterTerroristBots,
             map = Server.MapName
         });
-        ReplyToUserCommand(actor, $"Starting BETHECHAMP {(fullLength ? "MR12" : "MR3")} test match with {terroristBots + counterTerroristBots} bots.");
-        Logger.LogInformation("[BETHECHAMP TEST] Preparing {Format} with {Humans} humans and {Bots} bots.", fullLength ? "MR12" : "MR3", humans.Count, terroristBots + counterTerroristBots);
+        ReplyToUserCommand(actor, $"Starting REIGN {(fullLength ? "MR12" : "MR3")} test match with {terroristBots + counterTerroristBots} bots.");
+        Logger.LogInformation("[REIGN TEST] Preparing {Format} with {Humans} humans and {Bots} bots.", fullLength ? "MR12" : "MR3", humans.Count, terroristBots + counterTerroristBots);
         PrintToAllChat($"{ChatColors.Green}TEST MATCH{ChatColors.Default} | {(fullLength ? "MR12" : "MR3")} | Filling teams to 5v5. Ranking is enabled for human players.");
     }
 
@@ -160,11 +160,11 @@ public partial class MatchZy
                 EnsureRaitoTestBots();
             }, TimerFlags.STOP_ON_MAPCHANGE);
             AddTimer(3.0f, ReportRaitoTestRoster, TimerFlags.STOP_ON_MAPCHANGE);
-            Logger.LogInformation("[BETHECHAMP TEST] Live transition complete for match ID {MatchId}.", liveMatchId);
+            Logger.LogInformation("[REIGN TEST] Live transition complete for match ID {MatchId}.", liveMatchId);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "[BETHECHAMP TEST] Failed to start the test match.");
+            Logger.LogError(ex, "[REIGN TEST] Failed to start the test match.");
             ResetMatch();
         }
     }
@@ -226,7 +226,7 @@ public partial class MatchZy
         {
             raitoTestRosterCheckAttempts++;
             Logger.LogWarning(
-                "[BETHECHAMP TEST] Roster not stable yet (attempt {Attempt}/5): humans={Humans}, bots={Bots}, T={Terrorists}, CT={CounterTerrorists}.",
+                "[REIGN TEST] Roster not stable yet (attempt {Attempt}/5): humans={Humans}, bots={Bots}, T={Terrorists}, CT={CounterTerrorists}.",
                 raitoTestRosterCheckAttempts,
                 humans,
                 bots,
@@ -240,14 +240,14 @@ public partial class MatchZy
                 return;
             }
 
-            Logger.LogError("[BETHECHAMP TEST] Could not establish a stable 5v5 roster; aborting test match {MatchId}.", liveMatchId);
+            Logger.LogError("[REIGN TEST] Could not establish a stable 5v5 roster; aborting test match {MatchId}.", liveMatchId);
             StopRaitoTestMatch(null);
             return;
         }
 
         raitoTestStatsRosterReady = true;
-        Log($"[BETHECHAMP TEST] Roster ready: humans={humans}, bots={bots}, T={terrorists}, CT={counterTerrorists}, matchId={liveMatchId}");
-        Logger.LogInformation("[BETHECHAMP TEST] Roster ready: humans={Humans}, bots={Bots}, T={Terrorists}, CT={CounterTerrorists}, matchId={MatchId}.", humans, bots, terrorists, counterTerrorists, liveMatchId);
+        Log($"[REIGN TEST] Roster ready: humans={humans}, bots={bots}, T={terrorists}, CT={counterTerrorists}, matchId={liveMatchId}");
+        Logger.LogInformation("[REIGN TEST] Roster ready: humans={Humans}, bots={Bots}, T={Terrorists}, CT={CounterTerrorists}, matchId={MatchId}.", humans, bots, terrorists, counterTerrorists, liveMatchId);
         PrintToAllChat($"{ChatColors.Green}TEST ROSTER{ChatColors.Default} | T {terrorists}/5 | CT {counterTerrorists}/5 | {bots} bots.");
     }
 

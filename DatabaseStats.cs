@@ -95,7 +95,7 @@ namespace MatchZy
                     }
                 }
 
-                // BETHECHAMP additions for databases created before they existed (adds a column / an index, no rows touched).
+                // REIGN additions for databases created before they existed (adds a column / an index, no rows touched).
                 EnsureMatchTestColumn(connection);
                 EnsurePlayerHistoryIndex(connection);
 
@@ -296,7 +296,7 @@ namespace MatchZy
         // Creates (or reopens) the match row on map 0 and the map row, and returns the match id. For a match config with its own
         // matchid both rows are upserted: a reused matchid used to fail the insert, leave the map row missing, and on MySQL make
         // every player stats row fail its foreign key. Runs on its own connection.
-        // BETHECHAMP: marks matches started by the test-match command so ranking can ignore them.
+        // REIGN: marks matches started by the test-match command so ranking can ignore them.
         private void EnsureMatchTestColumn(DbConnection connection)
         {
             long columnCount = isSqlite
@@ -309,7 +309,7 @@ namespace MatchZy
             Log("[InitializeDatabase] Added is_test marker to matchzy_stats_matches");
         }
 
-        // BETHECHAMP: speeds up per-player history lookups used by the ranking code.
+        // REIGN: speeds up per-player history lookups used by the ranking code.
         private void EnsurePlayerHistoryIndex(DbConnection connection)
         {
             const string indexName = "idx_matchzy_players_steamid_match_map";
@@ -699,7 +699,7 @@ namespace MatchZy
 
         private void Log(string message)
         {
-            Console.WriteLine("[BETHECHAMP] " + message);
+            Console.WriteLine("[REIGN] " + message);
         }
 
         public enum DatabaseType
