@@ -738,7 +738,7 @@ public partial class MatchZy
     {
         if (raitoSignatureWarningLogged) return;
         raitoSignatureWarningLogged = true;
-        Log("[BETHECHAMP] Install gamedata/raito_weaponpaints.json in the global CounterStrikeSharp gamedata folder to enable knife and glove paint attributes.");
+        Log("[BETHECHAMP] Install gamedata/raito_matchzy.json in the global CounterStrikeSharp gamedata folder to enable knife and glove paint attributes.");
     }
 
     private void LogRaitoAttributeFailure(Exception ex)
