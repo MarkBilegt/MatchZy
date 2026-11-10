@@ -44,7 +44,6 @@ namespace MatchZy
                 ["matchzy_chat_messages_timer_delay"] = Int(() => chatTimerDelay, v => chatTimerDelay = v),
                 // Stored with the colors already applied, so they are written back as they were.
                 ["matchzy_chat_prefix"] = Text(() => chatPrefix, v => chatPrefix = v),
-                ["matchzy_admin_chat_prefix"] = Text(() => adminChatPrefix, v => adminChatPrefix = v),
                 ["matchzy_autostart_mode"] = Int(() => autoStartMode, v => autoStartMode = v),
                 ["matchzy_allow_force_ready"] = Bool(() => allowForceReady, v => allowForceReady = v),
                 ["matchzy_max_saved_last_grenades"] = Int(() => maxLastGrenadesSavedLimit, v => maxLastGrenadesSavedLimit = v),
@@ -101,7 +100,7 @@ namespace MatchZy
         private string? GetCurrentSettingValue(string name)
         {
             if (GetPluginSettings().TryGetValue(name, out var setting)) return setting.Get();
-            ConVar? cvar = ConVar.Find(name);
+            ConVarBase? cvar = FindConVar(name);
             if (cvar != null) return GetConvarStringValue(cvar);
             return GetFakeConVarValue(name);
         }

@@ -12,20 +12,19 @@ using CounterStrikeSharp.API.Modules.Events;
 
 namespace MatchZy
 {
-    [MinimumApiVersion(227)]
+    [MinimumApiVersion(371)]
     public partial class MatchZy : BasePlugin
     {
 
-        public override string ModuleName => "MatchZy";
+        public override string ModuleName => "BETHECHAMP Match Control";
 
-        public override string ModuleVersion => "0.9.2";
+        public override string ModuleVersion => "0.9.2-bethechamp.1";
 
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
-        public override string ModuleDescription => "A plugin for running and managing CS2 practice/pugs/scrims/matches!";
+        public override string ModuleDescription => "BETHECHAMP match, scrim, and practice control for CS2.";
 
-        public string chatPrefix = $"[{ChatColors.Green}MatchZy{ChatColors.Default}]";
-        public string adminChatPrefix = $"[{ChatColors.Red}ADMIN{ChatColors.Default}]";
+        public string chatPrefix = $"[{ChatColors.Green}BETHECHAMP{ChatColors.Default}]";
 
         // Plugin start phase data
         public bool isPractice = false;
@@ -60,9 +59,6 @@ namespace MatchZy
         private Dictionary<int, bool> playerReadyStatus = new Dictionary<int, bool>();
         private Dictionary<int, CCSPlayerController> playerData = new Dictionary<int, CCSPlayerController>();
 
-        // Admin Data
-        private Dictionary<string, string> loadedAdmins = new Dictionary<string, string>();
-
         // Timers
         public CounterStrikeSharp.API.Modules.Timers.Timer? unreadyPlayerMessageTimer = null;
         public CounterStrikeSharp.API.Modules.Timers.Timer? sideSelectionMessageTimer = null;
@@ -74,7 +70,7 @@ namespace MatchZy
 
         // Game Config
         public bool isKnifeRequired = true;
-        public int minimumReadyRequired = 2; // Number of ready players required start the match. If set to 0, all connected players have to ready-up to start the match.
+        public int minimumReadyRequired = 10; // BETHECHAMP public matches start once ten players are ready.
         public bool isWhitelistRequired = false;
         public bool isSaveNadesAsGlobalEnabled = false;
 
@@ -132,9 +128,8 @@ namespace MatchZy
 
         public override void Load(bool hotReload) {
             
-            LoadAdmins();
-
             database.InitializeDatabase(ModuleDirectory);
+            InitializeRaitoIntegration();
 
             // Ready-up time limit (get5_time_to_start), checked every second like Get5's Timer_CheckReady. Not tied to a map.
             AddTimer(1.0f, CheckReadyTime, TimerFlags.REPEAT);
@@ -193,7 +188,6 @@ namespace MatchZy
                 { ".settings", OnMatchSettingsCommand },
                 { ".whitelist", OnWLCommand },
                 { ".globalnades", OnSaveNadesAsGlobalCommand },
-                { ".reload_admins", OnReloadAdmins },
                 { ".tactics", OnPracCommand },
                 { ".prac", OnPracCommand },
                 { ".showspawns", OnShowSpawnsCommand },
@@ -227,7 +221,7 @@ namespace MatchZy
                 { ".spec", OnSpecCommand },
                 { ".fas", OnFASCommand },
                 { ".watchme", OnFASCommand },
-                { ".last", OnLastCommand },
+                { ".lastnade", OnLastCommand },
                 { ".throw", OnRethrowCommand },
                 { ".rethrow", OnRethrowCommand },
                 { ".rt", OnRethrowCommand },
@@ -471,7 +465,7 @@ namespace MatchZy
                     HandleEndMatchCommand(player, messageCommandArg);
                 }
 
-                if (commandName == ".map")
+                if (commandName == ".matchmap")
                 {
                     HandleMapChangeCommand(player, messageCommandArg);
                 }
@@ -483,25 +477,6 @@ namespace MatchZy
                 if (commandName == ".restore")
                 {
                     HandleRestoreCommand(player, messageCommandArg);
-                }
-                if (commandName == ".asay")
-                {
-                    if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
-                    {
-                        if (messageCommandArg != "")
-                        {
-                            Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
-                        }
-                        else
-                        {
-                            // ReplyToUserCommand(player, "Usage: .asay <message>");
-                            ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
-                        }
-                    }
-                    else
-                    {
-                        SendPlayerNotAdminMessage(player);
-                    }
                 }
                 if (commandName == ".savenade" || commandName == ".sn")
                 {
@@ -547,24 +522,11 @@ namespace MatchZy
                 {
                     HandleTeamNameChangeCommand(player, messageCommandArg, 2);
                 }
-                if (commandName == ".rcon")
-                {
-                    if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
-                    {
-                        Log($"[RCON] {player.PlayerName} ({player.SteamID}) executed: {MatchZySecurity.RedactConsoleCommand(messageCommandArg)}");
-                        Server.ExecuteCommand(messageCommandArg);
-                        ReplyToUserCommand(player, "Command sent successfully!");
-                    }
-                    else
-                    {
-                        SendPlayerNotAdminMessage(player);
-                    }
-                }
                 if (commandName == ".coach")
                 {
                     HandleCoachCommand(player, messageCommandArg);
                 }
-                if (commandName == ".ban")
+                if (commandName == ".mapban")
                 {
                     HandeMapBanCommand(player, messageCommandArg);
                 }
@@ -625,7 +587,7 @@ namespace MatchZy
             RegisterEventHandler<EventDecoyStarted>(EventDecoyDetonateHandler);
             RegisterLiveEventHandlers();
 
-            Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/) {GetBuildDescription()}");
+            Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] Core author: WD- (https://github.com/shobhit-pathak/) {GetBuildDescription()}");
         }
     }
 }

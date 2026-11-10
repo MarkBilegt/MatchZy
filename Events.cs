@@ -6,10 +6,14 @@ public class MatchZyEvent
     public MatchZyEvent(string eventName)
     {
         EventName = eventName;
+        EventId = Guid.NewGuid().ToString("N");
     }
 
     [JsonPropertyName("event")]
     public string EventName { get; }
+
+    [JsonPropertyName("event_id")]
+    public string EventId { get; }
 }
 
 public class MatchZyMatchEvent : MatchZyEvent

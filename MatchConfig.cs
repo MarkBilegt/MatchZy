@@ -32,7 +32,7 @@ namespace MatchZy
         public int PlayersPerTeam { get; set; } = 5;
 
         [JsonPropertyName("min_players_to_ready")]
-        public int MinPlayersToReady { get; set; } = 12;
+        public int MinPlayersToReady { get; set; } = 5;
 
         [JsonPropertyName("min_spectators_to_ready")]
         public int MinSpectatorsToReady { get; set; } = 0;

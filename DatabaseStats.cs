@@ -95,6 +95,10 @@ namespace MatchZy
                     }
                 }
 
+                // BETHECHAMP additions for databases created before they existed (adds a column / an index, no rows touched).
+                EnsureMatchTestColumn(connection);
+                EnsurePlayerHistoryIndex(connection);
+
                 Log("[InitializeDatabase] Table matchzy_stats_matches created (or already exists)");
                 Log("[InitializeDatabase] Table matchzy_stats_players created (or already exists)");
                 Log("[InitializeDatabase] Table matchzy_stats_maps created (or already exists)");
@@ -151,7 +155,8 @@ namespace MatchZy
                 team1_score INTEGER NOT NULL DEFAULT 0,
                 team2_name TEXT NOT NULL DEFAULT '',
                 team2_score INTEGER NOT NULL DEFAULT 0,
-                server_ip TEXT NOT NULL DEFAULT '0'
+                server_ip TEXT NOT NULL DEFAULT '0',
+                is_test INTEGER NOT NULL DEFAULT 0
             )");
 
             connection.Execute(@"
@@ -225,7 +230,8 @@ namespace MatchZy
                     team1_score INT NOT NULL DEFAULT 0,
                     team2_name VARCHAR(255) NOT NULL DEFAULT '',
                     team2_score INT NOT NULL DEFAULT 0,
-                    server_ip VARCHAR(255) NOT NULL DEFAULT '0'
+                    server_ip VARCHAR(255) NOT NULL DEFAULT '0',
+                    is_test TINYINT(1) NOT NULL DEFAULT 0
                 )");
                 
             connection.Execute($@"
@@ -290,7 +296,39 @@ namespace MatchZy
         // Creates (or reopens) the match row on map 0 and the map row, and returns the match id. For a match config with its own
         // matchid both rows are upserted: a reused matchid used to fail the insert, leave the map row missing, and on MySQL make
         // every player stats row fail its foreign key. Runs on its own connection.
-        public long InitMatch(string team1name, string team2name, string serverIp, bool isMatchSetup, long liveMatchId, int mapNumber, string seriesType, MatchConfig matchConfig)
+        // BETHECHAMP: marks matches started by the test-match command so ranking can ignore them.
+        private void EnsureMatchTestColumn(DbConnection connection)
+        {
+            long columnCount = isSqlite
+                ? connection.ExecuteScalar<long>("SELECT COUNT(*) FROM pragma_table_info('matchzy_stats_matches') WHERE name = 'is_test'")
+                : connection.ExecuteScalar<long>("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'matchzy_stats_matches' AND COLUMN_NAME = 'is_test'");
+            if (columnCount > 0) return;
+
+            string columnType = isSqlite ? "INTEGER" : "TINYINT(1)";
+            connection.Execute($"ALTER TABLE matchzy_stats_matches ADD COLUMN is_test {columnType} NOT NULL DEFAULT 0");
+            Log("[InitializeDatabase] Added is_test marker to matchzy_stats_matches");
+        }
+
+        // BETHECHAMP: speeds up per-player history lookups used by the ranking code.
+        private void EnsurePlayerHistoryIndex(DbConnection connection)
+        {
+            const string indexName = "idx_matchzy_players_steamid_match_map";
+            if (isSqlite)
+            {
+                connection.Execute($"CREATE INDEX IF NOT EXISTS {indexName} ON matchzy_stats_players (steamid64, matchid, mapnumber)");
+                return;
+            }
+
+            long indexCount = connection.ExecuteScalar<long>(@"
+                SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'matchzy_stats_players' AND INDEX_NAME = @indexName", new { indexName });
+            if (indexCount > 0) return;
+
+            connection.Execute($"ALTER TABLE matchzy_stats_players ADD INDEX {indexName} (steamid64, matchid, mapnumber)");
+            Log($"[InitializeDatabase] Added {indexName} index");
+        }
+
+        public long InitMatch(string team1name, string team2name, string serverIp, bool isMatchSetup, long liveMatchId, int mapNumber, string seriesType, MatchConfig matchConfig, bool isTestMatch = false)
         {
             try
             {
@@ -304,21 +342,21 @@ namespace MatchZy
                     // On map 0 a reused matchid reopens the match; on later maps the row is only created if it is missing.
                     string matchUpsert = mapNumber == 0
                         ? (isSqlite
-                            ? "ON CONFLICT(matchid) DO UPDATE SET team1_name = excluded.team1_name, team2_name = excluded.team2_name, series_type = excluded.series_type, server_ip = excluded.server_ip, end_time = NULL, winner = ''"
-                            : "ON DUPLICATE KEY UPDATE team1_name = VALUES(team1_name), team2_name = VALUES(team2_name), series_type = VALUES(series_type), server_ip = VALUES(server_ip), end_time = NULL, winner = ''")
+                            ? "ON CONFLICT(matchid) DO UPDATE SET team1_name = excluded.team1_name, team2_name = excluded.team2_name, series_type = excluded.series_type, server_ip = excluded.server_ip, is_test = excluded.is_test, end_time = NULL, winner = ''"
+                            : "ON DUPLICATE KEY UPDATE team1_name = VALUES(team1_name), team2_name = VALUES(team2_name), series_type = VALUES(series_type), server_ip = VALUES(server_ip), is_test = VALUES(is_test), end_time = NULL, winner = ''")
                         : (isSqlite ? "ON CONFLICT(matchid) DO NOTHING" : "ON DUPLICATE KEY UPDATE matchid = matchid");
                     connection.Execute($@"
-                        INSERT INTO matchzy_stats_matches (matchid, start_time, team1_name, team2_name, series_type, server_ip)
-                        VALUES (@liveMatchId, {Now}, @team1name, @team2name, @seriesType, @serverIp)
+                        INSERT INTO matchzy_stats_matches (matchid, start_time, team1_name, team2_name, series_type, server_ip, is_test)
+                        VALUES (@liveMatchId, {Now}, @team1name, @team2name, @seriesType, @serverIp, @isTestMatch)
                         {matchUpsert}",
-                        new { liveMatchId, team1name, team2name, seriesType, serverIp });
+                        new { liveMatchId, team1name, team2name, seriesType, serverIp, isTestMatch });
                 }
                 else if (mapNumber == 0)
                 {
                     connection.Execute($@"
-                        INSERT INTO matchzy_stats_matches (start_time, team1_name, team2_name, series_type, server_ip)
-                        VALUES ({Now}, @team1name, @team2name, @seriesType, @serverIp)",
-                        new { team1name, team2name, seriesType, serverIp });
+                        INSERT INTO matchzy_stats_matches (start_time, team1_name, team2_name, series_type, server_ip, is_test)
+                        VALUES ({Now}, @team1name, @team2name, @seriesType, @serverIp, @isTestMatch)",
+                        new { team1name, team2name, seriesType, serverIp, isTestMatch });
                     // Same connection, so this is the row inserted above.
                     matchId = connection.ExecuteScalar<long>(isSqlite ? "SELECT last_insert_rowid()" : "SELECT LAST_INSERT_ID()");
                 }
@@ -338,7 +376,7 @@ namespace MatchZy
                     {mapUpsert}",
                     new { matchId, mapNumber, mapName });
 
-                Log($"[InitMatch] Match {matchId} map {mapNumber} ({mapName}) recorded");
+                Log($"[InitMatch] Match {matchId} map {mapNumber} ({mapName}) recorded, is_test: {isTestMatch}");
                 return matchId;
             }
             catch (Exception ex)
@@ -661,7 +699,7 @@ namespace MatchZy
 
         private void Log(string message)
         {
-            Console.WriteLine("[MatchZy] " + message);
+            Console.WriteLine("[BETHECHAMP] " + message);
         }
 
         public enum DatabaseType

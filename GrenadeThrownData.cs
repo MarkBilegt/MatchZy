@@ -115,7 +115,7 @@ public class GrenadeThrownData
                 break;
             }
             default:
-                Console.WriteLine($"[MatchZy] Unknown Grenade: {Type}");
+                Console.WriteLine($"[BETHECHAMP] Unknown grenade: {Type}");
                 break;
         }
 

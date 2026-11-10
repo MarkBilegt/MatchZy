@@ -24,12 +24,12 @@ public partial class MatchZy
         if (!IsPlayerValid(player)) return;
         if (isPractice)
         {
-            ReplyToUserCommand(player, "Coach command can only be used in match mode!");
+            ReplyToUserCommand(player, "Coaching is available only in match mode.");
             return;
         }
         if (IsWingmanMode())
         {
-            ReplyToUserCommand(player, "Coach command cannot be used in wingman!");
+            ReplyToUserCommand(player, "Coaching is unavailable in Wingman.");
             return;
         }
 
@@ -37,13 +37,13 @@ public partial class MatchZy
 
         if (side != "t" && side != "ct")
         {
-            ReplyToUserCommand(player, "Usage: .coach t or .coach ct");
+            ReplyToUserCommand(player, $"Command format: {ChatColors.Green}.coach <t|ct>{ChatColors.Default}");
             return;
         }
 
         if (matchzyTeam1.coach.Contains(player!) || matchzyTeam2.coach.Contains(player!))
         {
-            ReplyToUserCommand(player, "You are already coaching a team!");
+            ReplyToUserCommand(player, "You already hold a coaching slot.");
             return;
         }
 
@@ -70,8 +70,8 @@ public partial class MatchZy
         matchZyCoachTeam.coach.Add(player!);
         player!.Clan = $"[{matchZyCoachTeam.teamName} COACH]";
         if (player.InGameMoneyServices != null) player.InGameMoneyServices.Account = 0;
-        ReplyToUserCommand(player, $"You are now coaching {matchZyCoachTeam.teamName}! Use .uncoach to stop coaching");
-        PrintToAllChat($"{ChatColors.Green}{player.PlayerName}{ChatColors.Default} is now coaching {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}!");
+        ReplyToUserCommand(player, $"Coaching {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}. Use {ChatColors.Green}.uncoach{ChatColors.Default} to leave the slot.");
+        PrintToAllChat($"Coach assigned: {ChatColors.Green}{player.PlayerName}{ChatColors.Default} joins {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}.");
     }
 
     public void HandleCoaches()
@@ -89,7 +89,7 @@ public partial class MatchZy
             return;
         }
 
-        int freezeTime = ConVar.Find("mp_freezetime")!.GetPrimitiveValue<int>();
+        int freezeTime = ConVar<int>.Find("mp_freezetime")!.Value;
         freezeTime = freezeTime > 2 ? freezeTime: 2;
         coachKillTimer ??= AddTimer(freezeTime - 1f, KillCoaches);
 
@@ -205,7 +205,7 @@ public partial class MatchZy
         if (!IsPlayerValid(target)) return; // should never trigger
 
         // transfer bomb
-        Log($"[EventPlayerGivenC4 INFO] Transferred bomb from {coach.PlayerName} (Coach) to {target.PlayerName}.");
+        Log($"[EventPlayerGivenC4 INFO] Transferred bomb from {coach.PlayerName} (Coach) to {target!.PlayerName}.");
         bomb.Value!.Remove();
         target.GiveNamedItem("weapon_c4");
     }
@@ -253,10 +253,10 @@ public partial class MatchZy
         if (isPaused || IsTacticalTimeoutActive()) return;
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
-        string suicidePenalty = GetConvarStringValue(ConVar.Find("mp_suicide_penalty"));
-        string specFreezeTime = GetConvarStringValue(ConVar.Find("spec_freeze_time"));
-        string specFreezeTimeLock = GetConvarStringValue(ConVar.Find("spec_freeze_time_lock"));
-        string specFreezeDeathanim = GetConvarStringValue(ConVar.Find("spec_freeze_deathanim_time"));
+        string suicidePenalty = GetConvarStringValue(FindConVar("mp_suicide_penalty"));
+        string specFreezeTime = GetConvarStringValue(FindConVar("spec_freeze_time"));
+        string specFreezeTimeLock = GetConvarStringValue(FindConVar("spec_freeze_time_lock"));
+        string specFreezeDeathanim = GetConvarStringValue(FindConVar("spec_freeze_deathanim_time"));
         Server.ExecuteCommand("mp_suicide_penalty 0;spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
 
         foreach (var coach in coaches)

@@ -61,6 +61,7 @@ namespace MatchZy
             }
         }
 
+        [ConsoleCommand("css_r", "Marks the player ready")]
         [ConsoleCommand("css_ready", "Marks the player ready")]
         public void OnPlayerReady(CCSPlayerController? player, CommandInfo? command)
         {
@@ -556,7 +557,7 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_map", "Changes the map using changelevel")]
+        [ConsoleCommand("css_matchmap", "Changes the map through MatchZy")]
         public void OnChangeMapCommand(CCSPlayerController? player, CommandInfo command)
         {
             var mapName = command.ArgByIndex(1);
@@ -621,42 +622,6 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_asay", "Say as an admin")]
-        public void OnAdminSay(CCSPlayerController? player, CommandInfo? command)
-        {
-            if (command == null) return;
-            if (player == null)
-            {
-                Server.PrintToChatAll($"{adminChatPrefix} {command.ArgString}");
-                return;
-            }
-            if (!IsPlayerAdmin(player, "css_asay", "@css/chat"))
-            {
-                SendPlayerNotAdminMessage(player);
-                return;
-            }
-            string message = "";
-            for (int i = 1; i < command.ArgCount; i++)
-            {
-                message += command.ArgByIndex(i) + " ";
-            }
-            Server.PrintToChatAll($"{adminChatPrefix} {message}");
-        }
-
-        [ConsoleCommand("reload_admins", "Reload admins of MatchZy")]
-        public void OnReloadAdmins(CCSPlayerController? player, CommandInfo? command)
-        {
-            if (IsPlayerAdmin(player, "reload_admins", "@css/config"))
-            {
-                LoadAdmins();
-                UpdatePlayersMap();
-            }
-            else
-            {
-                SendPlayerNotAdminMessage(player);
-            }
-        }
-
         [ConsoleCommand("css_match", "Starts match mode")]
         public void OnMatchCommand(CCSPlayerController? player, CommandInfo? command)
         {
@@ -693,21 +658,6 @@ namespace MatchZy
             }
 
             StartMatchMode();
-        }
-
-        [ConsoleCommand("css_rcon", "Triggers provided command on the server")]
-        public void OnRconCommand(CCSPlayerController? player, CommandInfo command)
-        {
-            if (!IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
-            {
-                SendPlayerNotAdminMessage(player);
-                return;
-            }
-            Log($"[RCON] {player?.PlayerName ?? "Console"} ({player?.SteamID.ToString() ?? "-"}) executed: {MatchZySecurity.RedactConsoleCommand(command.ArgString)}");
-            Server.ExecuteCommand(command.ArgString);
-            // ReplyToUserCommand(player, "Command sent successfully!");
-            ReplyToUserCommand(player, Localizer["matchzy.cc.rcon"]);
-
         }
 
         [ConsoleCommand("css_help", "Triggers provided command on the server")]
@@ -769,7 +719,7 @@ namespace MatchZy
         public HookResult OnConsoleNoClip(CCSPlayerController? player, CommandInfo? cmd) {
             if (player == null || !player.PawnIsAlive || player.Team == CsTeam.Spectator || player.Team == CsTeam.None)
                 return HookResult.Stop;
-            bool cheatsEnabled = ConVar.Find("sv_cheats")!.GetPrimitiveValue<bool>();
+            bool cheatsEnabled = ConVar<bool>.Find("sv_cheats")!.Value;
             if (!cheatsEnabled) {
                 return HookResult.Stop;
             }

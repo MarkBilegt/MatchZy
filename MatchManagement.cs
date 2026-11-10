@@ -601,7 +601,7 @@ namespace MatchZy
         }
 
         public void HandleTeamNameChangeCommand(CCSPlayerController? player, string teamName, int teamNum) {
-            if (!IsPlayerAdmin(player, "css_team", "@css/config")) {
+            if (!IsPlayerAdmin(player, $"css_team{teamNum}", "@css/config")) {
                 SendPlayerNotAdminMessage(player);
                 return;
             }
@@ -705,11 +705,11 @@ namespace MatchZy
             }
             else if (winner == null)
             {
-                PrintToAllChat($"{ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} and {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} have tied the match");
+                PrintToAllChat($"Match drawn: {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} and {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} finish level.");
             }
             else
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} has won the match");
+                Server.PrintToChatAll($"{chatPrefix} Match winner: {ChatColors.Green}{winnerName}{ChatColors.Default}.");
             }
 
             var seriesResultEvent = new MatchZySeriesResultEvent()
@@ -724,6 +724,16 @@ namespace MatchZy
             RemoteLogTarget target = CurrentRemoteLogTarget();
 
             database.SetMatchEndData(matchId, cancelled ? "" : winnerName ?? "Draw", team1Score, team2Score);
+            // Cancelled matches (new in upstream 0.9.x) must not be ranked.
+            if (!cancelled)
+            {
+                CompleteRaitoRankedMatchTracking(
+                    winnerName,
+                    team1Score,
+                    team2Score,
+                    matchConfig.CurrentMapNumber + 1);
+            }
+
             Task.Run(async () => {
                 // Making sure that map end event is fired first
                 await Task.Delay(2000);
@@ -731,6 +741,7 @@ namespace MatchZy
             });
 
             if (resetCvarsOnSeriesEnd) ResetChangedConvars();
+            ApplyRaitoServerRules();
             isMatchLive = false;
             if (restartDelay <= 0)
             {

@@ -59,7 +59,7 @@ Again, inside `csgo/cfg/MatchZy`, a file named `config.cfg` should be present. T
 :   Whether knife round is enabled by default or not. This is the default value, but knife can be toggled by [admins](#creating-admins) using .roundknife command.<br>**`Default: true`**
 
 ####`matchzy_minimum_ready_required`
-:   Minimum ready players required to start the match. If set to 0, all connected players have to ready-up to start the match.<br>**`Default: 2`**
+:   Minimum ready players required to start the match. If set to 0, all connected players have to ready-up to start the match.<br>**`Default: 10`**
 
 ####`matchzy_time_to_start`
 :   Time (in seconds) teams have to ready up for the knife round / going live in a loaded match (Get5's `get5_time_to_start`, which also works). Reminders are printed every minute, every 30 seconds in the last 5 minutes and at 10 seconds. When the time runs out, a team that is not ready forfeits the series (the ready team wins, reported with the series score needed to win, e.g. 1-0 in a BO1); if neither team is ready, the series ends in a tie (`series_end` with winner `none`). Each map of a series gets the full time. Admins can give more time with `.addreadytime <seconds>` / `matchzy_add_ready_time` / `get5_add_ready_time`. Set to 0 for no limit.<br>**`Default: 0`**
@@ -103,9 +103,6 @@ Example: `matchzy_demo_upload_url "https://your-website.com/upload-endpoint"` <b
 
 ####`matchzy_chat_prefix`
 :   Chat prefix to show whenever a MatchZy message is sent to players. Available Colors: {Default}, {Darkred}, {Green}, {LightYellow}, {LightBlue}, {Olive}, {Lime}, {Red}, {Purple}, {Grey}, {Yellow}, {Gold}, {Silver}, {Blue}, {DarkBlue}, {BlueGrey}, {Magenta} and {LightRed}. Make sure to end your prefix with {Default} to avoid coloring the messages in your prefix color.<br>**`Default: [{Green}MatchZy{Default}]`**
-
-####`matchzy_admin_chat_prefix`
-:   Chat prefix to show whenever an admin sends message using `.asay <message>`. Avaiable Colors are mentioned above.<br>**`Default: [{Red}ADMIN{Default}]`**
 
 ####`matchzy_chat_messages_timer_delay`
 :   Number of seconds of delay before sending reminder messages from MatchZy (like unready message, paused message, etc). Note: Changing this timer wont affect the active timer, so if you change this setting in warmup, you will have to restart warmup to make the change effective.<br>**`Default: 13[{Red}ADMIN{Default}]`**

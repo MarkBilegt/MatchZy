@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -53,97 +52,20 @@ namespace MatchZy
             }
         }
 
-        private void LoadAdmins()
-        {
-            string fileName = "MatchZy/admins.json";
-            string filePath = Path.Join(Server.GameDirectory + "/csgo/cfg", fileName);
-
-            if (File.Exists(filePath))
-            {
-                try
-                {
-                    using (StreamReader fileReader = File.OpenText(filePath))
-                    {
-                        string jsonContent = fileReader.ReadToEnd();
-                        if (!string.IsNullOrEmpty(jsonContent))
-                        {
-                            JsonSerializerOptions options = new()
-                            {
-                                AllowTrailingCommas = true,
-                            };
-                            loadedAdmins = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? new Dictionary<string, string>();
-                        }
-                        else
-                        {
-                            // Handle the case where the JSON content is empty or null
-                            loadedAdmins = new Dictionary<string, string>();
-                        }
-                    }
-                    foreach (var kvp in loadedAdmins)
-                    {
-                        Log($"[ADMIN] Username: {kvp.Key}, Role: {kvp.Value}");
-                        if (!string.IsNullOrWhiteSpace(kvp.Value) && MatchZySecurity.GetAdminFlags(kvp.Value).Count == 0 && kvp.Value.IndexOfAny(new[] { '@', '#', '/' }) >= 0)
-                        {
-                            Log($"[ADMIN WARNING] {kvp.Key}: \"{kvp.Value}\" contains no valid flag (expected e.g. @css/config), so this admin has full MatchZy admin access.");
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    Log($"[LoadAdmins FATAL] An error occurred: {e.Message}");
-                }
-            }
-            else
-            {
-                Log("[LoadAdmins] The JSON file does not exist. Creating one with default content");
-                Dictionary<string, string> defaultAdmins = new()
-                {
-                    { "steamid", "" }
-                };
-
-                try
-                {
-                    JsonSerializerOptions options = new()
-                    {
-                        WriteIndented = true,
-                    };
-                    string defaultJson = JsonSerializer.Serialize(defaultAdmins, options);
-                    string? directoryPath = Path.GetDirectoryName(filePath);
-                    if (directoryPath != null)
-                    {
-                        if (!Directory.Exists(directoryPath))
-                        {
-                            Directory.CreateDirectory(directoryPath);
-                        }
-                    }
-                    File.WriteAllText(filePath, defaultJson);
-
-                    Log("[LoadAdmins] Created a new JSON file with default content.");
-                }
-                catch (Exception e)
-                {
-                    Log($"[LoadAdmins FATAL] Error creating the JSON file: {e.Message}");
-                }
-            }
-        }
-
         private bool IsPlayerAdmin(CCSPlayerController? player, string command = "", params string[] permissions)
         {
-            if (everyoneIsAdmin.Value) return true; // Everyone is treated as admin if matchzy_everyone_is_admin is true.
+            if (player == null) return true; // Server console.
+            if (everyoneIsAdmin.Value) return true;
+
             string[] updatedPermissions = permissions.Concat(new[] { "@css/root" }).ToArray();
             RequiresPermissionsOr attr = new(updatedPermissions)
             {
                 Command = command
             };
-            if (attr.CanExecuteCommand(player)) return true; // Admin exists in admins.json of CSSharp
-            if (player == null) return true; // Sent via server, hence should be treated as an admin.
-            if (loadedAdmins.TryGetValue(player.SteamID.ToString(), out string? role)) // Admin exists in admins.json of MatchZy
-            {
-                List<string> flags = MatchZySecurity.GetAdminFlags(role);
-                if (flags.Count == 0) return true; // No flags given (e.g. "" or a name): full MatchZy admin, as before.
-                return MatchZySecurity.AdminFlagsGrant(flags, updatedPermissions);
-            }
-            return false;
+
+            // SimpleAdmin populates CounterStrikeSharp's AdminManager. MatchZy no
+            // longer grants match authority from its own files or website roles.
+            return attr.CanExecuteCommand(player);
         }
 
         private int GetRealPlayersCount()
@@ -177,7 +99,7 @@ namespace MatchZy
             if (unreadyPlayers.Count > 0)
             {
                 string unreadyPlayerList = string.Join(", ", unreadyPlayers);
-                string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
+                string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Target: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default} ready]";
 
                 // Server.PrintToChatAll($"{chatPrefix} Unready players: {unreadyPlayerList}. Please type .ready to ready up! {minimumReadyRequiredMessage}");
                 if (isRoundRestorePending)
@@ -335,9 +257,9 @@ namespace MatchZy
                 ExecOverrideCfg(knifeCfgPath);
             }
 
-            PrintToAllChat($"{ChatColors.Olive}KNIFE!");
-            PrintToAllChat($"{ChatColors.Lime}KNIFE!");
-            PrintToAllChat($"{ChatColors.Green}KNIFE!");
+            PrintToAllChat($"{ChatColors.Olive}KNIFE ROUND");
+            PrintToAllChat($"{ChatColors.Lime}KNIFE ROUND");
+            PrintToAllChat($"{ChatColors.Green}KNIFE ROUND");
         }
 
         private void SendSideSelectionMessage()
@@ -380,6 +302,7 @@ namespace MatchZy
             {
                 HandlePlayoutConfig();
                 ExecuteChangedConvars();
+                ApplyRaitoServerRules();
             });
         }
 
@@ -392,12 +315,17 @@ namespace MatchZy
             lastBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.txt";
             lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.json";
 
-            // This is to reload the map once it is over so that all flags are reset accordingly
-            Server.ExecuteCommand("mp_match_end_restart true");
+            // Public/test matches use CS2's native next-map vote. Configured
+            // series retain MatchZy's explicit map progression.
+            Server.ExecuteCommand(!isMatchSetup &&
+                                  raitoConfig.MapVoteEnabled &&
+                                  raitoConfig.NativeEndMatchMapVoteEnabled
+                ? "mp_match_end_restart false"
+                : "mp_match_end_restart true");
 
-            PrintToAllChat($"{ChatColors.Olive}LIVE!");
-            PrintToAllChat($"{ChatColors.Lime}LIVE!");
-            PrintToAllChat($"{ChatColors.Green}LIVE!");
+            PrintToAllChat($"{ChatColors.Olive}MATCH LIVE");
+            PrintToAllChat($"{ChatColors.Lime}MATCH LIVE");
+            PrintToAllChat($"{ChatColors.Green}MATCH LIVE");
 
             var goingLiveEvent = new GoingLiveEvent
             {
@@ -451,6 +379,9 @@ namespace MatchZy
                 StopPauseTracking(false);
                 seriesEnded = false;
                 currentMapFinished = false;
+                AbortRaitoRankedMatchTracking();
+                ResetRaitoTestMatchState();
+
                 // We stop demo recording if a live match was restarted
                 if (matchStarted && isDemoRecording)
                 {
@@ -689,7 +620,7 @@ namespace MatchZy
 
         private void HandleMapChangeCommand(CCSPlayerController? player, string mapName)
         {
-            if (!IsPlayerAdmin(player, "css_map", "@css/map"))
+            if (!IsPlayerAdmin(player, "css_matchmap", "@css/map"))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
@@ -719,7 +650,7 @@ namespace MatchZy
             }
             else
             {
-                ReplyToUserCommand(player, $"Invalid map name!");
+                ReplyToUserCommand(player, "Map rejected. Enter a valid workshop or competitive map name.");
             }
         }
 
@@ -846,7 +777,8 @@ namespace MatchZy
             HandleClanTags();
 
             string seriesType = "BO" + matchConfig.NumMaps.ToString();
-            liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig);
+            liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig, isRaitoTestMatch);
+            BeginRaitoRankedMatchTracking();
             SetupRoundBackupFile();
 
             GetSpawns();
@@ -865,7 +797,7 @@ namespace MatchZy
             }
             if (showCreditsOnMatchStart.Value)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Тоглолт эхэллээ!!!{ChatColors.Default}. GLHF.");
             }
             if (matchStartMessage.Value.Trim() != "" && matchStartMessage.Value.Trim() != "\"\"")
             {
@@ -880,39 +812,7 @@ namespace MatchZy
         public void HandleClanTags()
         {
             // Currently it is not possible to keep updating player tags while in warmup without restarting the match
-            // Hence returning from here until we find a proper solution
-            return;
-
-            if (readyAvailable && !matchStarted)
-            {
-                foreach (var key in playerData.Keys)
-                {
-                    if (playerReadyStatus[key])
-                    {
-                        playerData[key].Clan = "[Ready]";
-                    }
-                    else
-                    {
-                        playerData[key].Clan = "[Unready]";
-                    }
-                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
-                }
-            }
-            else if (matchStarted)
-            {
-                foreach (var key in playerData.Keys)
-                {
-                    if (playerData[key].TeamNum == 2)
-                    {
-                        playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
-                    }
-                    else if (playerData[key].TeamNum == 3)
-                    {
-                        playerData[key].Clan = reverseTeamSides["CT"].teamTag;
-                    }
-                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
-                }
-            }
+            // Keep this as a no-op until clan tags can be updated without restarting the match.
         }
 
         // True from the end of a map until the next map goes live.
@@ -925,9 +825,13 @@ namespace MatchZy
 
             // This ensures that the mp_match_restart_delay is not shorter than what is required for the GOTV recording to finish.
             // Ref: Get5
-            int restartDelay = ConVar.Find("mp_match_restart_delay")!.GetPrimitiveValue<int>();
+            int restartDelay = ConVar<int>.Find("mp_match_restart_delay")!.Value;
             int tvDelay = GetTvDelay();
             int requiredDelay = tvDelay + 15;
+            if (!isMatchSetup && raitoConfig.MapVoteEnabled)
+            {
+                requiredDelay = Math.Max(requiredDelay, raitoConfig.MapVoteDurationSeconds + 8);
+            }
             int tvFlushDelay = requiredDelay;
             if (tvDelay > 0.0)
             {
@@ -936,7 +840,7 @@ namespace MatchZy
             if (requiredDelay > restartDelay)
             {
                 Log($"Extended mp_match_restart_delay from {restartDelay} to {requiredDelay} to ensure GOTV broadcast can finish.");
-                ConVar.Find("mp_match_restart_delay")!.SetValue(requiredDelay);
+                ConVar<int>.Find("mp_match_restart_delay")!.Value = requiredDelay;
                 restartDelay = requiredDelay;
             }
             int currentMapNumber = matchConfig.CurrentMapNumber;
@@ -954,6 +858,8 @@ namespace MatchZy
             // Todo: Support BO3/BO5 in pugs as well
             if (!isMatchSetup)
             {
+                if (!raitoConfig.NativeEndMatchMapVoteEnabled &&
+                    BeginRaitoPublicMapVote(mapWinner?.teamName ?? "Draw", t1score, t2score)) return;
                 EndSeries(mapWinner, restartDelay - 1, t1score, t2score);
                 return;
             }
@@ -971,17 +877,17 @@ namespace MatchZy
             }
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} Series lead: {ChatColors.Green}{matchzyTeam1.teamName} {matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}.");
 
             }
             else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} Series lead: {ChatColors.Green}{matchzyTeam2.teamName} {matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}.");
 
             }
             else
             {
-                Server.PrintToChatAll($"{chatPrefix} The series is tied at {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} Series level at {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}.");
             }
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
@@ -1132,7 +1038,7 @@ namespace MatchZy
                     coachKillTimer?.Kill();
                     coachKillTimer = null;
                     (int t1score, int t2score) = GetTeamsScore();
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName} [{t1score} - {t2score}] {matchzyTeam2.teamName}");
+                    Server.PrintToChatAll($"{chatPrefix} Score: {ChatColors.Green}{matchzyTeam1.teamName} [{t1score} - {t2score}] {matchzyTeam2.teamName}{ChatColors.Default}");
 
                     ShowDamageInfo();
 
@@ -1171,11 +1077,11 @@ namespace MatchZy
                     // One of the team did not use .stop command hence display the proper message after the round has ended.
                     if (stopData["ct"] && !stopData["t"])
                     {
-                        Server.PrintToChatAll($"{chatPrefix} The round restore request by {ChatColors.Green}{reverseTeamSides["CT"].teamName}{ChatColors.Default} was cancelled as the round ended");
+                        Server.PrintToChatAll($"{chatPrefix} Rollback request from {ChatColors.Green}{reverseTeamSides["CT"].teamName}{ChatColors.Default} expired at round end.");
                     }
                     else if (!stopData["ct"] && stopData["t"])
                     {
-                        Server.PrintToChatAll($"{chatPrefix} The round restore request by {ChatColors.Green}{reverseTeamSides["TERRORIST"].teamName}{ChatColors.Default} was cancelled as the round ended");
+                        Server.PrintToChatAll($"{chatPrefix} Rollback request from {ChatColors.Green}{reverseTeamSides["TERRORIST"].teamName}{ChatColors.Default} expired at round end.");
                     }
 
                     // Invalidate .stop requests after a round is completed.
@@ -1205,10 +1111,10 @@ namespace MatchZy
             var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
             int roundsPlayed = gameRules.TotalRoundsPlayed;
 
-            int roundsPerHalf = ConVar.Find("mp_maxrounds")!.GetPrimitiveValue<int>() / 2;
-            int roundsPerOTHalf = ConVar.Find("mp_overtime_maxrounds")!.GetPrimitiveValue<int>() / 2;
+            int roundsPerHalf = ConVar<int>.Find("mp_maxrounds")!.Value / 2;
+            int roundsPerOTHalf = ConVar<int>.Find("mp_overtime_maxrounds")!.Value / 2;
 
-            bool halftimeEnabled = ConVar.Find("mp_halftime")!.GetPrimitiveValue<bool>();
+            bool halftimeEnabled = ConVar<bool>.Find("mp_halftime")!.Value;
 
             if (halftimeEnabled)
             {
@@ -1346,7 +1252,7 @@ namespace MatchZy
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Admin{ChatColors.Default} has paused the match.");
             if (player == null)
             {
-                Server.PrintToConsole($"[MatchZy] {Localizer["matchzy.pause.adminpausedthematch"]}");
+                Server.PrintToConsole($"[BETHECHAMP] {Localizer["matchzy.pause.adminpausedthematch"]}");
             }
             SetMatchPausedFlags();
             StartPauseTracking(PauseType.Admin, 0);
@@ -1366,7 +1272,7 @@ namespace MatchZy
 
                 if (player == null)
                 {
-                    Server.PrintToConsole("[MatchZy] Admin has unpaused the match, resuming the match!");
+                    Server.PrintToConsole("[BETHECHAMP] Admin resumed the match.");
                 }
             }
         }
@@ -1402,7 +1308,7 @@ namespace MatchZy
             ExecUnpracCommands();
             ResetMatch();
             RemoveSpawnBeams();
-            Server.PrintToChatAll($"{chatPrefix} Match mode loaded!");
+            Server.PrintToChatAll($"{chatPrefix} Match mode armed. Waiting for the ready check.");
         }
 
         // Seconds until the mp_restartgame run by ExecLiveCFG restarts the game.
@@ -1492,33 +1398,33 @@ namespace MatchZy
         {
             if (!IsPlayerValid(player)) return;
 
-            ReplyToUserCommand(player, "Available commands:");
+            ReplyToUserCommand(player, "BETHECHAMP command deck:");
 
             if (isPractice)
             {
-                player!.PrintToChat($" {ChatColors.Green}Spawns: {ChatColors.Default}.spawn, .ctspawn, .tspawn, .bestspawn, .worstspawn");
-                player.PrintToChat($" {ChatColors.Green}Bots: {ChatColors.Default}.bot, .nobots, .crouchbot, .boost, .crouchboost");
-                player.PrintToChat($" {ChatColors.Green}Nades: {ChatColors.Default}.loadnade, .savenade, .importnade, .listnades");
-                player.PrintToChat($" {ChatColors.Green}Nade Throw: {ChatColors.Default}.rethrow, .throwindex <index>, .lastindex, .delay <number>");
-                player.PrintToChat($" {ChatColors.Green}Utility & Toggles: {ChatColors.Default}.clear, .fastforward, .last, .back, .solid, .impacts, .traj");
-                player.PrintToChat($" {ChatColors.Green}Utility & Toggles: {ChatColors.Default}.savepos, .loadpos");
-                player.PrintToChat($" {ChatColors.Green}Sides & Others: {ChatColors.Default}.ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}SPAWNS{ChatColors.Default} | .spawn, .ctspawn, .tspawn, .bestspawn, .worstspawn");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}BOTS{ChatColors.Default} | .bot, .nobots, .crouchbot, .boost, .crouchboost");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}LINEUPS{ChatColors.Default} | .loadnade, .savenade, .importnade, .listnades");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}REPLAYS{ChatColors.Default} | .rethrow, .throwindex <index>, .lastindex, .delay <number>");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}TOOLS{ChatColors.Default} | .clear, .fastforward, .lastnade, .back, .solid, .impacts, .traj");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}POSITION{ChatColors.Default} | .savepos, .loadpos");
+                player.PrintToChat($"{chatPrefix} {ChatColors.Green}SESSION{ChatColors.Default} | .ct, .t, .spec, .fas, .god, .dryrun, .break, .exitprac");
                 return;
             }
             if (readyAvailable)
             {
-                player!.PrintToChat($" {ChatColors.Green}Ready/Unready: {ChatColors.Default}.ready, .unready");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}READY CHECK{ChatColors.Default} | .ready, .unready");
                 return;
             }
             if (isSideSelectionPhase)
             {
-                player!.PrintToChat($" {ChatColors.Green}Side Selection: {ChatColors.Default}.stay, .switch, .ct, .t");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}SIDE CALL{ChatColors.Default} | .stay, .switch, .ct, .t");
                 return;
             }
             if (matchStarted)
             {
                 string stopCommandMessage = isStopCommandAvailable ? ", .stop" : "";
-                player!.PrintToChat($" {ChatColors.Green}Pause/Restore: {ChatColors.Default}.pause, .unpause, .tac, .tech{stopCommandMessage}");
+                player!.PrintToChat($"{chatPrefix} {ChatColors.Green}MATCH CONTROL{ChatColors.Default} | .pause, .unpause, .tac, .tech{stopCommandMessage}");
                 return;
             }
         }
@@ -1572,7 +1478,11 @@ namespace MatchZy
             return false;
         }
 
-        public string GetConvarStringValue(ConVar? cvar)
+        // Looks a convar up without knowing its type. ConVar<T>.Find does not check T, and everything used on the
+        // result here (Type, ValueAsString, As<T>()) lives on ConVarBase, so the string type is only a way in.
+        public static ConVarBase? FindConVar(string name) => ConVar<string>.Find(name);
+
+        public string GetConvarStringValue(ConVarBase? cvar)
         {
             try
             {
@@ -1580,16 +1490,16 @@ namespace MatchZy
                 string convarValue = cvar.Type switch
                 {
                     // "1"/"0" and invariant-culture numbers, so the value can be executed as a console command on any server locale.
-                    ConVarType.Bool => cvar.GetPrimitiveValue<bool>() ? "1" : "0",
-                    ConVarType.Float32 => cvar.GetPrimitiveValue<float>().ToString(CultureInfo.InvariantCulture),
-                    ConVarType.Float64 => cvar.GetPrimitiveValue<double>().ToString(CultureInfo.InvariantCulture),
-                    ConVarType.UInt16 => cvar.GetPrimitiveValue<ushort>().ToString(),
-                    ConVarType.Int16 => cvar.GetPrimitiveValue<short>().ToString(),
-                    ConVarType.UInt32 => cvar.GetPrimitiveValue<uint>().ToString(),
-                    ConVarType.Int32 => cvar.GetPrimitiveValue<int>().ToString(),
-                    ConVarType.Int64 => cvar.GetPrimitiveValue<long>().ToString(),
-                    ConVarType.UInt64 => cvar.GetPrimitiveValue<ulong>().ToString(),
-                    ConVarType.String => cvar.StringValue,
+                    ConVarType.Bool => cvar.As<bool>().Value ? "1" : "0",
+                    ConVarType.Float32 => cvar.As<float>().Value.ToString(CultureInfo.InvariantCulture),
+                    ConVarType.Float64 => cvar.As<double>().Value.ToString(CultureInfo.InvariantCulture),
+                    ConVarType.UInt16 => cvar.As<ushort>().Value.ToString(),
+                    ConVarType.Int16 => cvar.As<short>().Value.ToString(),
+                    ConVarType.UInt32 => cvar.As<uint>().Value.ToString(),
+                    ConVarType.Int32 => cvar.As<int>().Value.ToString(),
+                    ConVarType.Int64 => cvar.As<long>().Value.ToString(),
+                    ConVarType.UInt64 => cvar.As<ulong>().Value.ToString(),
+                    ConVarType.String => cvar.ValueAsString,
                     _ => "",
                 };
                 return convarValue;
@@ -1602,21 +1512,21 @@ namespace MatchZy
 
         }
 
-        public void SetConvarValue(ConVar? cvar, string value)
+        public void SetConvarValue(ConVarBase? cvar, string value)
         {
             if (cvar == null) return;
             Dictionary<ConVarType, Action<string>> conversionMap = new()
             {
-                { ConVarType.Bool, v => cvar.SetValue(int.TryParse(v, out int intValue) ? intValue >= 1 : Convert.ToBoolean(v)) },
-                { ConVarType.Float32, v => cvar.SetValue(Convert.ToSingle(v, CultureInfo.InvariantCulture)) },
-                { ConVarType.Float64, v => cvar.SetValue(Convert.ToDouble(v, CultureInfo.InvariantCulture)) },
-                { ConVarType.UInt16, v => cvar.SetValue(Convert.ToUInt16(v)) },
-                { ConVarType.Int16, v => cvar.SetValue(Convert.ToInt16(v)) },
-                { ConVarType.UInt32, v => cvar.SetValue(Convert.ToUInt32(v)) },
-                { ConVarType.Int32, v => cvar.SetValue(Convert.ToInt32(v)) },
-                { ConVarType.Int64, v => cvar.SetValue(Convert.ToInt64(v)) },
-                { ConVarType.UInt64, v => cvar.SetValue(Convert.ToUInt64(v)) },
-                { ConVarType.String, v => cvar.SetValue(v) },
+                { ConVarType.Bool, v => cvar.As<bool>().Value = int.TryParse(v, out int intValue) ? intValue >= 1 : Convert.ToBoolean(v) },
+                { ConVarType.Float32, v => cvar.As<float>().Value = Convert.ToSingle(v, CultureInfo.InvariantCulture) },
+                { ConVarType.Float64, v => cvar.As<double>().Value = Convert.ToDouble(v, CultureInfo.InvariantCulture) },
+                { ConVarType.UInt16, v => cvar.As<ushort>().Value = Convert.ToUInt16(v) },
+                { ConVarType.Int16, v => cvar.As<short>().Value = Convert.ToInt16(v) },
+                { ConVarType.UInt32, v => cvar.As<uint>().Value = Convert.ToUInt32(v) },
+                { ConVarType.Int32, v => cvar.As<int>().Value = Convert.ToInt32(v) },
+                { ConVarType.Int64, v => cvar.As<long>().Value = Convert.ToInt64(v) },
+                { ConVarType.UInt64, v => cvar.As<ulong>().Value = Convert.ToUInt64(v) },
+                { ConVarType.String, v => cvar.ValueAsString = v },
             };
 
             if (conversionMap.TryGetValue(cvar.Type, out var conversion))
@@ -1642,7 +1552,7 @@ namespace MatchZy
 
         public bool IsAllowedMatchCvar(string name, string value, out string reason)
         {
-            return MatchZySecurity.IsAllowedMatchCvar(name, value, cvarName => ConVar.Find(cvarName) != null, GetMatchZyFakeConVarNames(), out reason);
+            return MatchZySecurity.IsAllowedMatchCvar(name, value, cvarName => FindConVar(cvarName) != null, GetMatchZyFakeConVarNames(), out reason);
         }
 
         public void ExecuteChangedConvars()
@@ -1702,7 +1612,7 @@ namespace MatchZy
                 {
                     // A value that cannot be quoted safely is set directly instead of through the console.
                     Log($"[ResetChangedConvars] Setting {key} to {loggedValue} directly");
-                    SetConvarValue(ConVar.Find(key), value);
+                    SetConvarValue(FindConVar(key), value);
                 }
             }
         }
@@ -1787,13 +1697,13 @@ namespace MatchZy
             int roundsPlayed = gameRules.TotalRoundsPlayed;
             try
             {
-                foreach (int key in playerData.Keys)
+                foreach (CCSPlayerController player in GetRaitoStatsPlayers())
                 {
-                    CCSPlayerController player = playerData[key];
-                    if (!player.IsValid || player.ActionTrackingServices == null) continue;
+                    if (!player.IsValid || player.IsHLTV || (player.IsBot && !isRaitoTestMatch) || player.ActionTrackingServices == null) continue;
 
                     var playerStats = player.ActionTrackingServices.MatchStats;
-                    ulong steamid64 = player.SteamID;
+                    ulong steamid64 = GetRaitoStatsSteamId(player);
+                    if (steamid64 == 0) continue;
 
                     // Create a nested dictionary to store individual stats for the player
                     Dictionary<string, object> stats = new Dictionary<string, object>
@@ -1923,7 +1833,7 @@ namespace MatchZy
 
         private void Log(string message)
         {
-            Console.WriteLine("[MatchZy] " + message);
+            Console.WriteLine("[BETHECHAMP] " + message);
         }
 
         private void AutoStart()
@@ -1947,28 +1857,28 @@ namespace MatchZy
 
         public int GetGameMode()
         {
-            var convar = ConVar.Find("game_mode");
+            var convar = ConVar<int>.Find("game_mode");
             if (convar != null)
             {
-                return convar.GetPrimitiveValue<int>();
+                return convar.Value;
             }
             return -1;
         }
 
         public int GetGameType()
         {
-            var convar = ConVar.Find("game_type");
+            var convar = ConVar<int>.Find("game_type");
             if (convar != null)
             {
-                return convar.GetPrimitiveValue<int>();
+                return convar.Value;
             }
             return -1;
         }
 
         public void SetCorrectGameMode()
         {
-            ConVar.Find("game_mode")!.SetValue(matchConfig.Wingman ? 2 : 1);
-            ConVar.Find("game_type")!.SetValue(0); // Classic GameType
+            ConVar<int>.Find("game_mode")!.Value = matchConfig.Wingman ? 2 : 1;
+            ConVar<int>.Find("game_type")!.Value = 0; // Classic GameType
         }
 
         public bool IsMapReloadRequiredForGameMode(bool wingman)
@@ -2111,7 +2021,7 @@ namespace MatchZy
                 if (!whiteList.Contains(steamId.ToString()))
                 {
                     Log($"[EventPlayerConnectFull] KICKING PLAYER STEAMID: {steamId}, Name: {player.PlayerName} (Not whitelisted!)");
-                    PrintToAllChat($"Kicking player {player.PlayerName} - Not whitelisted.");
+                    PrintToAllChat($"Whitelist removal: {ChatColors.Green}{player.PlayerName}{ChatColors.Default} is not cleared for this server.");
                     KickPlayer(player);
                     return true;
                 }

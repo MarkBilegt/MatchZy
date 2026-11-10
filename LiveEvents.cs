@@ -124,7 +124,7 @@ namespace MatchZy
                 {
                     if (!IsLiveForEvents() || !IsPlayerValid(@event.Userid)) return HookResult.Continue;
                     bombStats.AddDefuse(@event.Userid!.SteamID);
-                    int c4Timer = ConVar.Find("mp_c4timer")?.GetPrimitiveValue<int>() ?? 40;
+                    int c4Timer = ConVar<int>.Find("mp_c4timer")?.Value ?? 40;
                     int sincePlant = bombPlantedAt > 0 ? (int)Math.Round((Server.EngineTime - bombPlantedAt) * 1000) : 0;
                     var defuseEvent = new MatchZyBombDefusedEvent
                     {

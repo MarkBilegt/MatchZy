@@ -85,7 +85,7 @@ namespace MatchZy
                 string tempDemoPath = demoPath == "" ? demoFileName : demoPath + demoFileName;
                 activeDemoFile = tempDemoPath;
                 // Write the demo while recording (as the fork does), so less of it is lost if the server crashes.
-                if (ConVar.Find("tv_record_immediate") != null) Server.ExecuteCommand("tv_record_immediate 1");
+                if (FindConVar("tv_record_immediate") != null) Server.ExecuteCommand("tv_record_immediate 1");
                 Log($"[StartDemoRecoding] Starting demo recording, path: {tempDemoPath}");
                 TvRecord(tempDemoPath);
                 isDemoRecording = true;
@@ -145,14 +145,14 @@ namespace MatchZy
 
         public int GetTvDelay()
         {
-            bool tvEnable = ConVar.Find("tv_enable")!.GetPrimitiveValue<bool>();
+            bool tvEnable = ConVar<bool>.Find("tv_enable")!.Value;
             if (!tvEnable) return 0;
 
-            bool tvEnable1 = ConVar.Find("tv_enable1")!.GetPrimitiveValue<bool>();
-            int tvDelay = ConVar.Find("tv_delay")!.GetPrimitiveValue<int>();
+            bool tvEnable1 = ConVar<bool>.Find("tv_enable1")!.Value;
+            int tvDelay = ConVar<int>.Find("tv_delay")!.Value;
 
             if (!tvEnable1) return tvDelay;
-            int tvDelay1 = ConVar.Find("tv_delay1")!.GetPrimitiveValue<int>();
+            int tvDelay1 = ConVar<int>.Find("tv_delay1")!.Value;
 
             if (tvDelay < tvDelay1) return tvDelay1;
             return tvDelay;

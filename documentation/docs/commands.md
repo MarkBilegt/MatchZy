@@ -13,6 +13,7 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.tac` Starts a tactical timeout
 - `.coach <side>` Starts coaching the specified side. Example: `.coach t` to start coaching terrorist side!
 - `.uncoach` Leaves coaching slot
+- `!admin <reason>` Privately calls staff through Discord. The reason must be 5-200 characters. One open call is allowed per player, with a five-minute player cooldown and a 30-second server-wide cooldown.
 
 # Practice Mode Commands
 
@@ -47,7 +48,7 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.break` Breaks all the breakable entities (glass windows, wooden doors, vents, etc)
 - `.rethrow` Rethrows your last thrown grenade (Alias: `.rt`)
 - `.timer` Starts a timer immediately and stops it when you type .timer again, telling you the duration of time
-- `.last` Teleports you back to where you threw your last grenade from
+- `.lastnade` Teleports you back to where you threw your last grenade from
 - `.back <number>` Teleports you back to the provided position in your grenade history
 - `.delay <delay_in_seconds>` Sets a delay on your last grenade. This is only used when using .rethrow or .throwindex
 - `.throwindex <index> <optional index> <optional index>` Throws grenade of provided position(s) from your grenade thrown history. Example: `.throwindex 1 2` will throw your 1st and 2nd grenade. `.throwindex 4 5 8 9` will throw your 4th, 5th, 8th and 9th grenade (If you've added delay in grenades, they'll be thrown with their specific delay).
@@ -76,11 +77,19 @@ Most of the commands can also be used using ! prefix instead of . (like !ready)
 - `.readyrequired <number>` Sets the number of ready players required to start the match. If set to 0, all connected players will have to ready-up to start the match.
 - `.addreadytime <seconds>` Gives the teams more time to ready up when `matchzy_time_to_start` is set (console: `matchzy_add_ready_time` / `get5_add_ready_time`).
 - `.settings` Displays the current setting, like whether knife is enabled or not, value of readyrequired  players, etc.
-- `.map <mapname>` Changes the map
-- `.asay <message>` Say as an admin in all chat
-- `.reload_admins` Reloads admins from `admins.json`
+- `.matchmap <mapname>` Changes the map for MatchZy
 - `.team1 <name>` Sets name for Team 1 (CT by default)
 - `.team2 <name>` Sets name for Team 2 (Terrorist by default)
 - `.prac` Starts Practice Mode (Alias: `.tactics`)
 - `.exitprac` Exits from practice mode and loads Match mode.
-- `.rcon <command>` Sends command to the server
+
+General administration—including `!adminmenu`, `!map`, `!asay`, `!rcon`, moderation, and admin assignment—is owned by SimpleAdmin.
+
+# BETHECHAMP Test Match Commands
+
+These commands are restricted to SimpleAdmin root administrators and server console. Test matches remain isolated from production readiness, but human players receive normal ranking events so the XP flow can be verified against bots.
+
+- `.testmatch` Starts a 5v5 MR3 test match, filling empty player slots with bots. (Alias: `.testmatch short`, `.testmatch mr3`)
+- `.testmatch full` Starts a 5v5 MR12 test match. (Alias: `.testmatch mr12`)
+- `.testmatch status` Shows the active test format and MatchZy match ID.
+- `.testmatch stop` Aborts the test, removes test bots, and restores normal ten-player warmup. (Alias: `.testmatch end`)

@@ -1,5 +1,6 @@
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using Newtonsoft.Json.Linq;
 using System.Text.Json.Serialization;
@@ -45,7 +46,7 @@ namespace MatchZy
         {
             if (player == null || !player.PlayerPawn.IsValid) return;
             if (isPractice) {
-                ReplyToUserCommand(player, "Uncoach command can only be used in match mode!");
+                ReplyToUserCommand(player, "Coaching changes are available only in match mode.");
                 return;
             }
 
@@ -60,13 +61,13 @@ namespace MatchZy
                 SetPlayerVisible(player);
             }
             else {
-                ReplyToUserCommand(player, "You are not coaching any team!");
+                ReplyToUserCommand(player, "You do not currently hold a coaching slot.");
                 return;
             }
 
             if (player.InGameMoneyServices != null) player.InGameMoneyServices.Account = 0;
 
-            ReplyToUserCommand(player, "You are now not coaching any team!");
+            ReplyToUserCommand(player, "Coaching slot released.");
         }
 
         [ConsoleCommand("matchzy_addplayer", "Adds player to the provided team")]
@@ -146,7 +147,7 @@ namespace MatchZy
                 if (IsPlayerValid(removedPlayer))
                 {
                     Log($"Kicking player {removedPlayer!.PlayerName} - Not a player in this game (removed).");
-                    PrintToAllChat($"Kicking player {removedPlayer!.PlayerName} - Not a player in this game.");
+                    PrintToAllChat($"Roster removal: {ChatColors.Green}{removedPlayer!.PlayerName}{ChatColors.Default} is not listed for this match.");
                     KickPlayer(removedPlayer);
                 }
             }
