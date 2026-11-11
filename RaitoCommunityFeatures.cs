@@ -264,5 +264,5 @@ public partial class MatchZy
     }
 
     private string GetRaitoMatchState() => isRaitoTestMatch ? "test" : isPractice ? "practice" : isMatchLive ? "live" : isKnifeRound ? "knife" : isWarmup ? "warmup" : "waiting";
-    private static bool IsRaitoPrivilegedRole(string role) => role is "VIP" or "ADMIN" or "HEAD_ADMIN" or "MANAGER" or "OWNER";
+    private static bool IsRaitoPrivilegedRole(string role) => role is "VIP" or "ADMIN" or "BOSS" or "MODERATOR" or "HEAD_ADMIN" or "MANAGER" or "CO_OWNER" or "OWNER";
 }

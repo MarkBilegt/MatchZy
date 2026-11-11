@@ -1103,6 +1103,11 @@ public partial class MatchZy
                         $"css_unban {command.TargetSteamId64} \"{reason}\"");
                     detail = "Dispatched unban to SimpleAdmin.";
                     break;
+                case "RELOAD_ADMINS":
+                    // A rank was set, extended or expired on the website: re-read SimpleAdmin's admin list.
+                    Server.ExecuteCommand("css_reloadadmins");
+                    detail = "Dispatched admin list reload to SimpleAdmin.";
+                    break;
                 case "REFRESH_LOADOUT":
                     if (player is null)
                     {
