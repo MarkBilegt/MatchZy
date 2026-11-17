@@ -1106,7 +1106,9 @@ public partial class MatchZy
                 case "RELOAD_ADMINS":
                     // A rank was set, extended or expired on the website: re-read SimpleAdmin's admin list.
                     Server.ExecuteCommand("css_reloadadmins");
-                    detail = "Dispatched admin list reload to SimpleAdmin.";
+                    // Chat tags re-read the rank right away too, so a new VIP/BOSS/ADMIN shows up in chat at once.
+                    Server.ExecuteCommand("css_raitotags_reload");
+                    detail = "Dispatched admin list and tag reload.";
                     break;
                 case "REFRESH_LOADOUT":
                     if (player is null)

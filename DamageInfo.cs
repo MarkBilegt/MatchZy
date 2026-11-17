@@ -57,6 +57,12 @@ namespace MatchZy
 			targetInfo.Hits++;
 		}
 
+        private string FormatDamageLine(string enemy, int dealt, int dealtHits, int taken, int takenHits, int enemyHp)
+        {
+            string hp = enemyHp > 0 ? $"{enemyHp} HP" : "dead";
+            return $"{ChatColors.Green}{enemy}{ChatColors.Default} ({hp}) | {ChatColors.Green}->{ChatColors.Default} {dealt} dmg ({dealtHits} {(dealtHits == 1 ? "hit" : "hits")}) | {ChatColors.Red}<-{ChatColors.Default} {taken} dmg ({takenHits} {(takenHits == 1 ? "hit" : "hits")})";
+        }
+
         private void ShowDamageInfo()
         {
             if (!enableDamageReport.Value) return;
@@ -103,8 +109,9 @@ namespace MatchZy
                             int targetHP = targetController.PlayerPawn.Value.Health < 0 ? 0 : targetController.PlayerPawn.Value.Health;
                             string targetName = targetController.PlayerName;
 
-                            PrintToPlayerChat(attackerController, $"DAMAGE | {ChatColors.Green}{targetName}{ChatColors.Default} | dealt {damageGiven} in {hitsGiven}, received {damageTaken} in {hitsTaken} | {targetHP} HP");
-                            PrintToPlayerChat(targetController, $"DAMAGE | {ChatColors.Green}{attackerName}{ChatColors.Default} | dealt {damageTaken} in {hitsTaken}, received {damageGiven} in {hitsGiven} | {attackerHP} HP");
+                            // Faceit-style report: damage dealt (and hits) to the enemy, damage taken from them, their remaining HP.
+                            PrintToPlayerChat(attackerController, FormatDamageLine(targetName, damageGiven, hitsGiven, damageTaken, hitsTaken, targetHP));
+                            PrintToPlayerChat(targetController, FormatDamageLine(attackerName, damageTaken, hitsTaken, damageGiven, hitsGiven, attackerHP));
                         }
 
                         // Mark this pair as processed to avoid duplicates.

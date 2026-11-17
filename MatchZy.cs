@@ -70,7 +70,7 @@ namespace MatchZy
 
         // Game Config
         public bool isKnifeRequired = true;
-        public int minimumReadyRequired = 10; // REIGN public matches start once ten players are ready.
+        public int minimumReadyRequired = 2; // REIGN public matches (and ranking) start once two players are ready.
         public bool isWhitelistRequired = false;
         public bool isSaveNadesAsGlobalEnabled = false;
 
@@ -133,6 +133,9 @@ namespace MatchZy
 
             // Ready-up time limit (get5_time_to_start), checked every second like Get5's Timer_CheckReady. Not tied to a map.
             AddTimer(1.0f, CheckReadyTime, TimerFlags.REPEAT);
+
+            // Warmup perks: full armor + infinite money.
+            AddTimer(0.5f, ApplyWarmupPerks, TimerFlags.REPEAT);
 
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
@@ -264,6 +267,8 @@ namespace MatchZy
                 // UpdatePlayersMap();
             });
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
+            RegisterReadyHud();
+            RegisterServerExtras();
             RegisterEventHandler<EventPlayerTeam>((@event, info) => {
                 CCSPlayerController? player = @event.Userid;
                 if (!IsPlayerValid(player)) return HookResult.Continue;

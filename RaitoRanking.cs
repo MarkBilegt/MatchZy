@@ -11,6 +11,15 @@ public partial class MatchZy
 {
     private RaitoRankWriter? raitoRankWriter;
     private int raitoCurrentRoundNumber;
+    private readonly Dictionary<ulong, int> raitoRoundKills = new();
+
+    // Playtime: +20 XP for every 5 minutes a player spends in a live ranked match.
+    private const int RaitoPlaytimeAwardSeconds = 300;
+    private const int RaitoPlaytimeAwardXp = 20;
+    private const float RaitoPlaytimeTickSeconds = 5f;
+    private readonly Dictionary<ulong, int> raitoPlaySeconds = new();
+    private long raitoPlaytimeMatchId;
+    private int raitoPlaytimeAwards;
 
     private void InitializeRaitoRanking()
     {
@@ -28,6 +37,7 @@ public partial class MatchZy
         RegisterEventHandler<EventPlayerDeath>(OnRaitoRankPlayerDeath, HookMode.Post);
         RegisterEventHandler<EventRoundEnd>(OnRaitoRankRoundEnd, HookMode.Post);
         RegisterEventHandler<EventRoundMvp>(OnRaitoRankRoundMvp, HookMode.Post);
+        AddTimer(RaitoPlaytimeTickSeconds, TickRaitoPlaytime, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
         Log("[REIGN RANK] Transactional XP ledger enabled.");
     }
 
@@ -37,8 +47,48 @@ public partial class MatchZy
         raitoRankWriter = null;
     }
 
+    private void TickRaitoPlaytime()
+    {
+        if (!IsRaitoRankedMatch() || IsRaitoPaused()) return;
+
+        if (raitoPlaytimeMatchId != liveMatchId)
+        {
+            raitoPlaytimeMatchId = liveMatchId;
+            raitoPlaySeconds.Clear();
+            raitoPlaytimeAwards = 0;
+        }
+
+        var awards = new List<RaitoXpEvent>();
+        int roundNumber = GetRaitoTrackedRoundNumber();
+        int sourceTick = Server.TickCount;
+        foreach (CCSPlayerController player in Utilities.GetPlayers().Where(IsRaitoRankPlayer))
+        {
+            int seconds = raitoPlaySeconds.GetValueOrDefault(player.SteamID) + (int)RaitoPlaytimeTickSeconds;
+            if (seconds < RaitoPlaytimeAwardSeconds)
+            {
+                raitoPlaySeconds[player.SteamID] = seconds;
+                continue;
+            }
+
+            raitoPlaySeconds[player.SteamID] = seconds - RaitoPlaytimeAwardSeconds;
+            awards.Add(CreateRaitoXpEvent(
+                RaitoXpEventType.Playtime,
+                player,
+                roundNumber,
+                sourceTick,
+                xpDelta: RaitoPlaytimeAwardXp,
+                metadata: new { minutes = RaitoPlaytimeAwardSeconds / 60 },
+                playSeconds: RaitoPlaytimeAwardSeconds));
+        }
+
+        QueueRaitoXpEvents(awards);
+    }
+
+    private bool IsRaitoPaused() => isPaused;
+
     private HookResult OnRaitoRankRoundStart(EventRoundStart @event, GameEventInfo info)
     {
+        raitoRoundKills.Clear();
         if (IsRaitoRankedMatch())
         {
             raitoCurrentRoundNumber = GetRaitoRoundNumber(roundInProgress: true);
@@ -84,6 +134,7 @@ public partial class MatchZy
             && attacker.TeamNum != rankedVictim.TeamNum;
         if (enemyKill)
         {
+            raitoRoundKills[attacker!.SteamID] = raitoRoundKills.GetValueOrDefault(attacker.SteamID) + 1;
             events.Add(CreateRaitoXpEvent(
                 RaitoXpEventType.Kill,
                 attacker!,
@@ -147,6 +198,18 @@ public partial class MatchZy
                     metadata: new { winner = @event.Winner, reason = @event.Reason }))
             .ToList();
 
+        // Multi-kill bonuses, once per round: 3 kills +5, 4 kills +10, 5+ kills (ace) +15.
+        foreach (CCSPlayerController player in Utilities.GetPlayers().Where(IsRaitoRankPlayer))
+        {
+            int roundKills = raitoRoundKills.GetValueOrDefault(player.SteamID);
+            if (roundKills < 3) continue;
+            (RaitoXpEventType type, int bonus) = roundKills >= 5
+                ? (RaitoXpEventType.Ace, 15)
+                : roundKills == 4 ? (RaitoXpEventType.MultiKill4, 10) : (RaitoXpEventType.MultiKill3, 5);
+            events.Add(CreateRaitoXpEvent(type, player, roundNumber, sourceTick, xpDelta: bonus, metadata: new { roundKills }));
+        }
+        raitoRoundKills.Clear();
+
         QueueRaitoXpEvents(events);
         return HookResult.Continue;
     }
@@ -181,10 +244,11 @@ public partial class MatchZy
         int roundLosses = 0,
         int mvps = 0,
         CCSPlayerController? counterparty = null,
-        object? metadata = null)
+        object? metadata = null,
+        int playSeconds = 0)
     {
         string eventType = type.ToString().ToLowerInvariant();
-        string sourceIdentity = type is RaitoXpEventType.Kill or RaitoXpEventType.Death or RaitoXpEventType.Assist
+        string sourceIdentity = type is RaitoXpEventType.Kill or RaitoXpEventType.Death or RaitoXpEventType.Assist or RaitoXpEventType.Playtime
             ? $"{sourceTick}:{counterparty?.SteamID ?? 0}"
             : "round";
         string eventIdentity = $"{raitoConfig.ServerId}:{liveMatchId}:{matchConfig.CurrentMapNumber}:{roundNumber}:{eventType}:{sourceIdentity}:{player.SteamID}";
@@ -207,7 +271,8 @@ public partial class MatchZy
             counterparty is null ? null : GetRaitoRankIdentity(counterparty),
             counterparty?.PlayerName,
             metadata,
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            playSeconds);
     }
 
     private bool IsRaitoRankedMatch() =>
@@ -374,6 +439,10 @@ public partial class MatchZy
                     RaitoXpEventType.RoundWin => "раундыг авж",
                     RaitoXpEventType.RoundLoss => "раунд алдаж",
                     RaitoXpEventType.Mvp => "раундын MVP авч",
+                    RaitoXpEventType.MultiKill3 => "3 хүн алж (Triple Kill)",
+                    RaitoXpEventType.MultiKill4 => "4 хүн алж (Quad Kill)",
+                    RaitoXpEventType.Ace => "ACE хийж",
+                    RaitoXpEventType.Playtime => "5 минут тоглосон учир",
                     _ => "a ranking event"
                 };
                 string totalXp = $"{ChatColors.Green}{notification.XpAfter}{ChatColors.Default}";

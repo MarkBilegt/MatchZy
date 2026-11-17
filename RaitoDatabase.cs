@@ -40,7 +40,11 @@ public enum RaitoXpEventType
     Assist,
     RoundWin,
     RoundLoss,
-    Mvp
+    Mvp,
+    MultiKill3,
+    MultiKill4,
+    Ace,
+    Playtime
 }
 
 public sealed record RaitoRankedMatchContext(
@@ -68,7 +72,8 @@ public sealed record RaitoXpEvent(
     ulong? CounterpartySteamId64 = null,
     string? CounterpartyName = null,
     object? Metadata = null,
-    DateTime? OccurredAtUtc = null);
+    DateTime? OccurredAtUtc = null,
+    int PlaySeconds = 0);
 
 public sealed record RaitoAppliedXpEvent(
     RaitoXpEvent Event,
@@ -469,12 +474,14 @@ public sealed class RaitoDatabase : IDisposable
                         `roundWins` = GREATEST(0, `roundWins` + @roundWins),
                         `roundLosses` = GREATEST(0, `roundLosses` + @roundLosses),
                         `mvps` = GREATEST(0, `mvps` + @mvps),
+                        `playSeconds` = GREATEST(0, `playSeconds` + @playSeconds),
                         `updatedAt` = @now
                     WHERE `steamId64` = @steamId64
                     """, connection, transaction))
                 {
                     updateProgress.Parameters.AddWithValue("@displayName", xpEvent.DisplayName);
                     updateProgress.Parameters.AddWithValue("@xpAfter", xpAfter);
+                    updateProgress.Parameters.AddWithValue("@playSeconds", xpEvent.PlaySeconds);
                     updateProgress.Parameters.AddWithValue("@kills", xpEvent.Kills);
                     updateProgress.Parameters.AddWithValue("@deaths", xpEvent.Deaths);
                     updateProgress.Parameters.AddWithValue("@assists", xpEvent.Assists);
@@ -630,6 +637,10 @@ public sealed class RaitoDatabase : IDisposable
         RaitoXpEventType.RoundWin => "ROUND_WIN",
         RaitoXpEventType.RoundLoss => "ROUND_LOSS",
         RaitoXpEventType.Mvp => "MVP",
+        RaitoXpEventType.MultiKill3 => "MULTI_KILL_3",
+        RaitoXpEventType.MultiKill4 => "MULTI_KILL_4",
+        RaitoXpEventType.Ace => "ACE",
+        RaitoXpEventType.Playtime => "PLAYTIME",
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported XP event type.")
     };
 

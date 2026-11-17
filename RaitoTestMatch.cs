@@ -19,7 +19,7 @@ public partial class MatchZy
     private bool isRaitoTestMatch;
     private bool raitoTestFullLength;
     private bool raitoTestPreviousKnifeRequired;
-    private int raitoTestPreviousReadyRequired = 10;
+    private int raitoTestPreviousReadyRequired = 2;
     private string raitoTestPreviousHostname = string.Empty;
     private int raitoTestTerroristBotTarget;
     private int raitoTestCounterTerroristBotTarget;
@@ -276,7 +276,7 @@ public partial class MatchZy
         }
 
         ResetMatch();
-        PrintToAllChat($"{ChatColors.Green}TEST MATCH{ChatColors.Default} | Stopped. Normal ten-player warmup restored.");
+        PrintToAllChat($"{ChatColors.Green}TEST MATCH{ChatColors.Default} | Stopped. Normal warmup restored.");
     }
 
     private void ResetRaitoTestMatchState()

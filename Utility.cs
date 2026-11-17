@@ -68,6 +68,37 @@ namespace MatchZy
             return attr.CanExecuteCommand(player);
         }
 
+        // During warmup every human player keeps full armor (kevlar + helmet) and maxed-out money.
+        private void ApplyWarmupPerks()
+        {
+            if (!isWarmup || isPractice) return;
+            foreach (var player in Utilities.GetPlayers())
+            {
+                if (player == null || !player.IsValid || player.IsBot || player.IsHLTV) continue;
+                if (player.TeamNum != 2 && player.TeamNum != 3) continue;
+
+                var money = player.InGameMoneyServices;
+                if (money != null && money.Account < 16000)
+                {
+                    money.Account = 16000;
+                    Utilities.SetStateChanged(player, "CCSPlayerController", "m_pInGameMoneyServices");
+                }
+
+                var pawn = player.PlayerPawn.Value;
+                if (!player.PawnIsAlive || pawn == null) continue;
+                if (pawn.ArmorValue < 100)
+                {
+                    pawn.ArmorValue = 100;
+                    Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_ArmorValue");
+                }
+                if (pawn.ItemServices != null && !new CCSPlayer_ItemServices(pawn.ItemServices.Handle).HasHelmet)
+                {
+                    new CCSPlayer_ItemServices(pawn.ItemServices.Handle).HasHelmet = true;
+                    Utilities.SetStateChanged(pawn, "CBasePlayerPawn", "m_pItemServices");
+                }
+            }
+        }
+
         private int GetRealPlayersCount()
         {
             return playerData.Count;
@@ -852,6 +883,7 @@ namespace MatchZy
             Team? mapWinner = t1score > t2score ? matchzyTeam1 : t2score > t1score ? matchzyTeam2 : null;
             if (mapWinner != null) mapWinner.seriesScore++;
             PublishMapEnd(mapWinner, mapWinner?.teamName ?? "Draw", t1score, t2score);
+            ReportWagerResult(t1score, t2score);
 
             // If a match is not setup, it was supposed to be a pug/scrim with 1 map
             // Hence we reset the match once it is over
