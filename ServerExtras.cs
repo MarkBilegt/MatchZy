@@ -11,16 +11,17 @@ namespace MatchZy;
 public partial class MatchZy
 {
     public bool deadHudEnabled = true;
-    public int adIntervalSeconds = 300;
+    public int adIntervalSeconds = 120;
     private int deadHudTick = 0;
     private int adIndex = 0;
     private CounterStrikeSharp.API.Modules.Timers.Timer? adTimer;
 
     private static readonly string[] DefaultAds =
     [
-        "{Green}Discord-д нэгдээрэй: {Default}https://discord.gg/G525Nh2sCh",
-        "{Green}REIGN {Default}серверийн хөгжүүлэгч - {Green}iammark_c",
+        "{Green}Discord-д нэгдээрэй: {Default}https://discord.gg/reignmn",
+        "{Green}REIGN {Default}серверийн хөгжүүлэгч - {Green}iammark_",
         "{Default}Бэлэн болохдоо {Green}E{Default} дарах эсвэл {Green}.r{Default} гэж бичээрэй.",
+        "{Default}Menu нээх - {Green}!menu{Green}"
     ];
 
     [ConsoleCommand("matchzy_dead_hud", "Show a HUD message to dead players during a live match. 1 = on, 0 = off. Default: 1")]
@@ -95,7 +96,7 @@ public partial class MatchZy
 
             player.PrintToCenterHtml(
                 "<font color='#ffd34d' class='fontSize-l'>Та яг одоо <b>REIGN</b> сервер дээр тоглож байна</font><br>" +
-                "<font color='#cccccc' class='fontSize-s'>discord.gg/G525Nh2sCh</font>", 1);
+                "<font color='#cccccc' class='fontSize-s'>discord.gg/reignmn</font>", 1);
         }
     }
 }
